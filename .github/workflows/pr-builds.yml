@@ -1,0 +1,74 @@
+name: Pull request builds
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  windows-release:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    name: Windows Release build
+    runs-on: [self-hosted, Windows, X64, u11]
+    timeout-minutes: 30
+    env:
+      CMAKE_BUILD_PARALLEL_LEVEL: "8"
+      HIDDEN_WINDOW: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Windows Release executable
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & .\tools\build-windows.ps1 -Configuration Release
+          if ($LASTEXITCODE -ne 0) { throw "Windows build failed with exit code $LASTEXITCODE" }
+          if (-not (Test-Path -LiteralPath '.\out\windows-ninja\shooter.exe')) {
+            throw 'Windows build did not produce shooter.exe.'
+          }
+
+  arm64-cross-build:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    name: ARM64 cross-build
+    runs-on: [self-hosted, Windows, X64, u11]
+    timeout-minutes: 30
+    env:
+      HIDDEN_WINDOW: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build ARM64 executable in WSL
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ($env:GITHUB_WORKSPACE -notmatch '^(?<drive>[A-Za-z]):[\\/](?<path>.+)$') {
+            throw "GITHUB_WORKSPACE is not an absolute Windows path: $env:GITHUB_WORKSPACE"
+          }
+          $linuxWorkspace = "/mnt/$($Matches.drive.ToLowerInvariant())/$($Matches.path -replace '\\', '/')"
+          if ([string]::IsNullOrWhiteSpace($linuxWorkspace)) {
+            throw 'Could not resolve the GitHub workspace in Ubuntu-24.04 WSL.'
+          }
+
+          $buildScript = @'
+          set -euo pipefail
+          source_workspace="$1"
+          build_workspace="$(mktemp -d /tmp/u11-pr-build.XXXXXX)"
+          cleanup() {
+            rm -rf "$build_workspace"
+          }
+          trap cleanup EXIT
+          git -C "$source_workspace" archive --format=tar HEAD | tar -xf - -C "$build_workspace"
+          cd "$build_workspace"
+          JOBS=8 bash tools/build-arm64-wsl.sh
+          test -f build-arm64/trench_run.o
+          test -f shooter-arm64
+          '@
+
+          # Pipe an ASCII-only Base64 payload so Windows CRLF output cannot
+          # corrupt the shell script as it crosses into WSL.
+          $encodedBuildScript = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($buildScript))
+          & wsl -d Ubuntu-24.04 -- bash -c 'printf %s "$1" | base64 -d | bash -s -- "$2"' -- $encodedBuildScript $linuxWorkspace
+          if ($LASTEXITCODE -ne 0) { throw "ARM64 build failed with exit code $LASTEXITCODE" }
