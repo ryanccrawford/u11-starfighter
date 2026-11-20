@@ -10,17 +10,23 @@ playfield column (width = min(screen W, H × 1.3)) with HUD side panels. All "y"
 
 ## Level — `assets/levels/level_XX.json`
 
-Optional `spawn_points` entries have a required `id` and `position` object containing `x`, `y`, and `z` in design-space units (X forward, Y across, Z height). A point named `player` is projected into the active view at level start. Enemy/object spawn-point integration and authoritative 3D level movement are not complete; existing levels without a player point retain their existing start behavior.
+Optional `spawn_points` entries have a required `id` and `position` object containing `x`, `y`, and `z` in design-space units (X forward, Y across, Z height). A point named `player` is projected into the active view at level start.
 ```json
 {
   "name": "Outer Rim",
-  "mode": "side_scroll",
+  "mode": "side_scroll",              // "side_scroll" | "top_down"
   "player": "red_fighter",             // assets/players/<id>.json
-  "boss": "warden",                    // optional: spawned after all waves are cleared
+  "duration": 180,                     // stage duration in seconds (default 180 for timed, 0 for boss)
+  "boss": "warden",                    // optional boss id; spawned after all waves are cleared
+  "music": "music/level_01.mp3",       // background music path
+  "terrain": "",                       // terrain descriptor path
+  "approach": false,                   // enables chase-cam orbit, re-entry heat, and cloud descent
+  "approach_start": 122,               // timeline second where approach continues (e.g. Level 4)
+  "approach_end": 122,                 // timeline second where approach concludes (e.g. Level 6)
+  "ground_guns": false,                // spawns surface defense turrets on terrain pads
+  "liftoff": false,                    // begins grounded on launchpad and climbs to orbit
   "intro": "intro",                    // optional cutscene id played before the level
   "outro": "chapter1_end",             // optional cutscene id played after
-  "music": "",                         // reserved
-  "terrain": "",                       // reserved for ground controllers (tilemap/heightmap path)
   "clear_color": [6, 6, 20],
   "difficulty": { "hp": 1.0, "fire_rate": 1.0, "speed": 1.0 },   // multipliers on enemy defs
   "background": [ <layer>, ... ],      // drawn back to front
@@ -58,13 +64,17 @@ The level ends when all waves have spawned, no enemies remain, and the boss (if 
 ## Enemy — `assets/enemies/<id>.json`
 ```json
 {
-  "id": "weaver", "name": "Weaver",
+  "id": "scarab", "name": "Scarab Scout",
   "sprite": "sprites/blue_racer_pi3_sprites.json",
-  "scale": 0.8, "tint": [200, 170, 255],
+  "model": "enemies/scarab/scarab_lod.glb", // 3D GLB model under assets/models/
+  "modelScale": 1.0, "scale": 0.85,
+  "tint": [200, 170, 255], "engineTint": [214, 128, 255],
   "hp": 2, "speed": 130, "score": 150, "boss": false,
+  "animations": { "idle": "Idle", "fire": "Fire" },
   "movement": { "pattern": "sine", "amplitude": 80, "frequency": 3,
                 "points": [[1.05, 0.15], [0.6, 0.5], [-0.1, 0.5]] },
-  "weapon": { "type": "aimed", "interval": 2.4, "shots": 1 },
+  "weapon": { "type": "needle", "interval": 2.4, "shots": 1, "speed": 1.0,
+              "size": 1.0, "damage": 1, "telegraph": 0.4, "spinUp": 0.1, "burstGap": 0.09 },
   "drops": { "chance": 0.15, "table": { "weapon": 3, "missiles": 2, "rapid": 1, "shield": 1, "repair": 1 } },
   "phases": [ ... ]   // bosses only
 }
@@ -73,7 +83,7 @@ The level ends when all waves have spawned, no enemies remain, and the boss (if 
   (`points` = [forward 0..1, lateral 0..1] waypoints in playfield fractions), `invaders` (marching grid: steps
   sideways, advances at the edges, speeds up as members die), `boss` (holds near the far edge and strafes).
 - **weapon.type**: `none`, `aimed`, `spread` (`shots` fan), `laser` (fast straight bolt), `missile` (slow homing),
-  `spiral` (`shots` arms, rotating), `sweep` (rotating stream).
+  `spiral` (`shots` arms, rotating), `sweep` (rotating stream), `needle` (green aimed projectile), `rotary` (burst cannon).
 - **drops.table**: weights per pickup — `weapon` (laser level 1→3: single, double, spread), `missiles` (+ammo),
   `shield`, `repair`, `rapid` (fire-rate ×2 for 8 s).
 
@@ -97,12 +107,28 @@ Bosses get the top HP bar with `name`, a WARNING banner on entry, white hit flas
 
 ## Campaign — `assets/campaign.json`
 ```json
-{ "title": "U11 Starfighter",
-  "chapters": [ { "title": "Chapter 1", "steps": [ {"level": "level_01"}, {"cutscene": "interlude"}, {"level": "level_02"} ] } ] }
+{
+  "title": "U11 Starfighter 3D",
+  "chapters": [
+    {
+      "title": "3D Proof",
+      "steps": [
+        {"level": "level_01"},
+        {"level": "level_02"},
+        {"level": "level_03"},
+        {"level": "level_06"},
+        {"level": "level_04"},
+        {"level": "level_07"},
+        {"level": "level_05"},
+        {"level": "level_08"}
+      ]
+    }
+  ]
+}
 ```
 A step is a `level` (its own intro/outro play around it) or a standalone `cutscene`. Missing campaign → every
-level in filename order. Progress (unlocked levels, campaign step, high score, volume, FPS display) is saved to
-`~/.u11shooter_save` (chroot `/root/.u11shooter_save`).
+level in filename order. Progress (unlocked levels, campaign step, high score, volume, FPS display, graphics quality,
+owned primary weapons, and pitch inversion) is saved to `$HOME/.u11shooter3d_save` (chroot `/root/.u11shooter3d_save`).
 
 ## Cutscene — `assets/cutscenes/<id>.json`
 `{"steps": [ ... ]}` executed in order. Tap advances dialog; the **SKIP »** corner ends the scene.

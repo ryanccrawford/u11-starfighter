@@ -4,7 +4,8 @@ Replace the text and files; structure is what the engine reads. See LEVEL_FORMAT
 
 ## Premise (placeholder)
 The Warden's fleet has crossed the Outer Rim. You are the last pilot of the U11 squadron. Chapter 1 takes you
-from the Rim through the invasion grid and an asteroid field to the Warden's flagship.
+from the Rim through the invasion grid, inside an enemy warship, down through planetary entry to a fortress assault,
+liftoff back to orbit to defeat the Warden, and a final strike on the Moon base.
 
 ## Cast
 | id | portrait | role |
@@ -14,13 +15,16 @@ from the Rim through the invasion grid and an asteroid field to the Warden's fla
 | THE WARDEN | portraits/warden.png | chapter boss (enemies/warden.json) |
 
 ## Chapter outline → campaign.json
-| step | type | id | notes |
+| step (0-based) | type | id | notes |
 |---|---|---|---|
-| 1 | level | level_01 (side) | intro cutscene `intro` |
-| 2 | level | level_02 (top-down) | invaders grid |
-| 3 | level | level_03 (side) | asteroid run |
-| 4 | level | level_04 (top-down) | fortress approach |
-| 5 | level | level_05 (side) | boss: warden; outro `chapter1_end` |
+| 0 | level | level_01 (side) | Outer Rim; intro cutscene `intro` |
+| 1 | level | level_02 (top-down) | Invasion Grid; marching invader waves |
+| 2 | level | level_03 (side) | Enemy Ship Infiltration; interior bulkheads and turrets |
+| 3 | level | level_06 (top-down) | Planetfall; atmospheric entry and cloud descent |
+| 4 | level | level_04 (top-down) | Fortress Approach; terrain combat, ground guns, flamer unlock |
+| 5 | level | level_07 (top-down) | Liftoff; launchpad escape burn, plasma lance unlock |
+| 6 | level | level_05 (side) | The Warden; flagship boss battle against the sun |
+| 7 | level | level_08 (side / trench) | Moon Breakup; 3D lunar trench run, exhaust port bomb, outro `chapter1_end` |
 
 ## Intro cutscene (shipped as assets/cutscenes/intro.json)
 ```json

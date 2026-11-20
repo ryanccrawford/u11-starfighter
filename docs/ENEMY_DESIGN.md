@@ -28,7 +28,7 @@ Planned tiers (same language, rising threat):
 5. Inferno Brute: short-range flamethrower with a telegraph and continuous damage. Fuel tanks pump, iris nozzle petals open.
 
 ## Current placement (temporary)
-Until the other four are built, **every enemy type (and the Warden boss) uses the Scarab model** with the violet flame; see CHATGPT_HANDOFF.md section 9. Ryan will decide where each new design fits in the story as it's finished. Then set that enemy's `model`, `engineTint` and `tint` (restore from `legacyTint`).
+Until the other four are built, **every enemy type (and the Warden boss) uses the Scarab model** with the violet flame. Ryan will decide where each new design fits in the story as it's finished. Then set that enemy's `model`, `engineTint` and `tint` (restore from `legacyTint`).
 
 ## Pipeline (box: Blender 4.2 LTS headless; the scripts also target Blender 5.0)
 ```
