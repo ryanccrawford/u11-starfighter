@@ -1,0 +1,81 @@
+{
+ "name": "Planetfall",
+ "mode": "top_down",
+ "approach": true,
+ "approach_end": 122,
+ "player": "red_fighter",
+ "duration": 180,
+ "clear_color": [
+  6,
+  4,
+  16
+ ],
+ "background": [
+  {
+   "type": "nebula",
+   "speed": 8,
+   "color": [45, 65, 130],
+   "density": 30
+  },
+  {
+   "type": "stars",
+   "speed": 40,
+   "density": 110
+  },
+  {
+   "type": "stars",
+   "speed": 240,
+   "density": 34
+  },
+  {
+   "type": "stars",
+   "speed": 120,
+   "density": 24
+  },
+  {
+   "type": "terrain3d",
+   "model": "planetfall_terrain.json",
+   "speed": 60,
+   "color": [
+    255,
+    255,
+    255
+   ]
+  }
+ ],
+ "waves": [
+  {
+   "time": 3,
+   "enemy": "weaver",
+   "count": 5,
+   "formation": "column",
+   "y": 0.5
+  },
+  {
+   "time": 11,
+   "enemy": "scarab",
+   "count": 3,
+   "formation": "line",
+   "y": 0.3,
+   "spacing": 120
+  },
+  {
+   "time": 19,
+   "enemy": "diver",
+   "count": 4,
+   "formation": "random"
+  },
+  {
+   "time": 25,
+   "enemy": "weaver",
+   "count": 5,
+   "formation": "v",
+   "y": 0.5
+  }
+ ],
+ "difficulty": {
+  "hp": 1.15,
+  "fire_rate": 1.05,
+  "speed": 1.0
+ }
+}

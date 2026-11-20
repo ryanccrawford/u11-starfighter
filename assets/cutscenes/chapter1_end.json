@@ -1,0 +1,10 @@
+{ "steps": [
+  { "type": "background", "color": [30, 10, 12], "duration": 0 },
+  { "type": "fade", "from_alpha": 1, "to_alpha": 0, "duration": 0.8 },
+  { "type": "sfx", "sfx": "explosion" },
+  { "type": "shake", "amount": 0.8, "duration": 0.8 },
+  { "type": "dialog", "speaker": "COMMAND", "portrait": "portraits/command.png",
+    "text": "The Warden is down and you made it through the moon's debris. Good work, pilot.\nBut this was only their vanguard..." },
+  { "type": "title", "text": "TO BE CONTINUED", "duration": 2.0 },
+  { "type": "fade", "from_alpha": 0, "to_alpha": 1, "duration": 0.8 }
+] }

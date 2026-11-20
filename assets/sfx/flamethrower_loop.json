@@ -1,0 +1,11 @@
+{
+  "name": "Plasma flamethrower beam",
+  "duration": 0.8,
+  "loop": true,
+  "volume": 0.48,
+  "layers": [
+    { "name": "Combustion core", "type": "noise", "wave": "sine", "filter": "lowpass", "gain": 0.62, "start": 0, "freq": 130, "endFreq": 190, "attack": 0.01, "decay": 0.1, "sustain": 0.92, "release": 0.02, "voices": 1, "detune": 0, "voiceInterval": 0, "fmRatio": 1, "fmDepth": 0, "pan": 0, "cutoff": 950, "resonance": 0.8, "lfoRate": 8, "lfoDepth": 90, "drive": 0.22, "sampleRate": 1 },
+    { "name": "Ion hiss", "type": "noise", "wave": "sine", "filter": "bandpass", "gain": 0.28, "start": 0, "freq": 1800, "endFreq": 2600, "attack": 0.01, "decay": 0.1, "sustain": 0.78, "release": 0.02, "voices": 1, "detune": 0, "voiceInterval": 0, "fmRatio": 1, "fmDepth": 0, "pan": 0, "cutoff": 3200, "resonance": 1.1, "lfoRate": 17, "lfoDepth": 420, "drive": 0.08, "sampleRate": 1 },
+    { "name": "Arc modulation", "type": "osc", "wave": "triangle", "filter": "lowpass", "gain": 0.16, "start": 0, "freq": 74, "endFreq": 92, "attack": 0.01, "decay": 0.1, "sustain": 0.8, "release": 0.02, "voices": 2, "detune": 14, "voiceInterval": 0, "fmRatio": 3, "fmDepth": 18, "pan": 0, "cutoff": 620, "resonance": 0.7, "lfoRate": 5, "lfoDepth": 4, "drive": 0.1, "sampleRate": 1 }
+  ]
+}

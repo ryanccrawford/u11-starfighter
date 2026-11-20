@@ -1,0 +1,10 @@
+{
+  "name": "Weapon overheat warning",
+  "duration": 0.42,
+  "loop": false,
+  "volume": 0.42,
+  "layers": [
+    { "name": "Warning chirp", "type": "osc", "wave": "square", "filter": "bandpass", "gain": 0.38, "start": 0, "freq": 980, "endFreq": 420, "attack": 0.004, "decay": 0.08, "sustain": 0.4, "release": 0.08, "voices": 2, "detune": 9, "voiceInterval": 0, "fmRatio": 2, "fmDepth": 20, "pan": 0, "cutoff": 2600, "resonance": 1.1, "lfoRate": 0, "lfoDepth": 0, "drive": 0.04, "sampleRate": 1 },
+    { "name": "Thermal burst", "type": "noise", "wave": "sine", "filter": "highpass", "gain": 0.2, "start": 0.02, "freq": 3300, "endFreq": 900, "attack": 0.002, "decay": 0.12, "sustain": 0.05, "release": 0.08, "voices": 1, "detune": 0, "voiceInterval": 0, "fmRatio": 1, "fmDepth": 0, "pan": 0, "cutoff": 2400, "resonance": 0.7, "lfoRate": 0, "lfoDepth": 0, "drive": 0.1, "sampleRate": 1 }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+ "name": "enemy_gunship",
+ "file": "enemy_gunship.glb",
+ "tris": 4900,
+ "blender_verts": 2506,
+ "bbox_gltf_min": [
+  -1.48,
+  -0.368,
+  -1.273
+ ],
+ "bbox_gltf_max": [
+  1.48,
+  0.368,
+  1.273
+ ],
+ "nozzles_gltf": [
+  [
+   1.27,
+   -0.114,
+   -1.165
+  ],
+  [
+   -1.27,
+   -0.114,
+   -1.165
+  ]
+ ]
+}

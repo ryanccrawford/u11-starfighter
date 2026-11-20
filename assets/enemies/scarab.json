@@ -1,0 +1,6 @@
+{ "id": "scarab", "name": "Scarab Scout Drone",
+  "model": "enemies/scarab/scarab_lod.glb",
+  "scale": 0.85, "tint": [255, 255, 255], "engineTint": [214, 128, 255], "hp": 2, "speed": 165, "score": 150,
+  "movement": { "pattern": "sine", "amplitude": 50, "frequency": 2.4 },
+  "weapon": { "type": "needle", "interval": 1.7, "shots": 1, "speed": 1.0, "size": 1.0, "damage": 10, "telegraph": 0.35 },
+  "drops": { "chance": 0.2, "table": { "shield": 3, "weapon": 2, "rapid": 1 } } }

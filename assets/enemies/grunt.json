@@ -1,0 +1,4 @@
+{ "id": "grunt", "sprite": "sprites/blue_racer_pi3_sprites.json", "model": "enemy_grunt.glb", "engineTint": [214, 128, 255], "scale": 0.8, "hp": 1, "speed": 150, "score": 100,
+  "movement": { "pattern": "straight" },
+  "weapon": { "type": "none" },
+  "drops": { "chance": 0.24, "table": { "shield": 5, "weapon": 2, "repair": 1 } } }

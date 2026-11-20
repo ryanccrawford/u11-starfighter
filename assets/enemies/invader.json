@@ -1,0 +1,4 @@
+{ "id": "invader", "sprite": "sprites/blue_racer_pi3_sprites.json", "model": "enemy_invader.glb", "engineTint": [214, 128, 255], "scale": 0.6, "tint": [255, 255, 255], "legacyTint": [140, 255, 160], "hp": 1, "speed": 55, "score": 80,
+  "movement": { "pattern": "invaders" },
+  "weapon": { "type": "laser", "interval": 6.0 },
+  "drops": { "chance": 0.18, "table": { "shield": 5, "weapon": 1, "rapid": 1 } } }

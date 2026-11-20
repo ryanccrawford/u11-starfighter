@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>U11 Sprite Viewer — Ship &amp; Flame Overlay</title>
+<style>
+  :root { --bg:#0d1117; --panel:#161b22; --line:#30363d; --fg:#c9d1d9; --dim:#8b949e; --acc:#a58bff; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:13px/1.4 ui-monospace,Consolas,monospace; display:flex; height:100vh; }
+  #side { width:330px; overflow:auto; background:var(--panel); border-right:1px solid var(--line); padding:10px 12px; }
+  #main { flex:1; display:flex; flex-direction:column; min-width:0; }
+  #stageWrap { flex:1; position:relative; overflow:hidden; }
+  canvas#stage { position:absolute; inset:0; width:100%; height:100%; }
+  h1 { font-size:14px; margin:0 0 8px; color:var(--acc); }
+  fieldset { border:1px solid var(--line); border-radius:6px; margin:0 0 10px; padding:6px 8px 8px; }
+  legend { color:var(--dim); padding:0 4px; }
+  label { display:flex; align-items:center; gap:6px; margin:3px 0; }
+  label > span { width:92px; color:var(--dim); flex:none; }
+  input[type=number] { width:64px; } input[type=range] { flex:1; }
+  input, select, button { background:#0d1117; color:var(--fg); border:1px solid var(--line); border-radius:4px; padding:2px 4px; font:inherit; }
+  select { flex:1; min-width:0; }
+  button { cursor:pointer; padding:3px 8px; } button:hover { border-color:var(--acc); }
+  .row { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+  #status { padding:6px 10px; border-top:1px solid var(--line); color:var(--dim); white-space:pre-wrap; min-height:48px; }
+  #drop { position:absolute; inset:12px; border:2px dashed var(--acc); border-radius:10px; display:none; align-items:center; justify-content:center; font-size:18px; background:rgba(13,17,23,.75); pointer-events:none; }
+  .hint { color:var(--dim); font-size:12px; }
+  .val { width:44px; text-align:right; color:var(--fg); }
+</style>
+</head>
+<body>
+<div id="side">
+  <h1>U11 Sprite Viewer</h1>
+  <p class="hint">Load your real sheets: pick or drag &amp; drop the ship PNG(s), the ship <code>*_sprites.json</code>, and the flame PNG/JSON.
+  Files whose name contains "flame" go to the flame slot; everything else to the ship slot.
+  Works offline from a double-click (no web server).</p>
+
+  <fieldset><legend>Files</legend>
+    <label><span>Ship / flame</span><input type="file" id="files" multiple accept=".png,.json,image/png,application/json"></label>
+    <div class="row"><button id="tryRepo" title="Load ../assets/sprites/* relative to this file (PNGs always work; JSON needs file access or a server)">Load repo assets</button>
+    <button id="clearFlame">No flame sheet</button></div>
+    <div class="hint" id="loaded">nothing loaded</div>
+  </fieldset>
+
+  <fieldset><legend>Sheet</legend>
+    <label><span>Orientation</span><select id="section"><option value="side_scroller">side_scroller</option><option value="top_down">top_down</option></select></label>
+    <label><span>Frame W×H</span><input type="number" id="fw" value="128" min="1"> × <input type="number" id="fh" value="128" min="1"></label>
+    <label><span>Cols × Rows</span><input type="number" id="cols" value="8" min="1"> × <input type="number" id="rows" value="5" min="1"></label>
+    <label><span>Pose / bank</span><select id="row"></select></label>
+    <label><span>Mirror</span><input type="checkbox" id="mirror"> <span class="hint" style="width:auto">enemy facing (game flips side: H, top: V)</span></label>
+  </fieldset>
+
+  <fieldset><legend>Playback</legend>
+    <div class="row"><button id="play">⏸ Pause</button><button id="prev">◀ Step</button><button id="next">Step ▶</button><span id="frameLbl"></span></div>
+    <label><span>FPS</span><input type="range" id="fps" min="1" max="60" value="20"><span class="val" id="fpsV"></span></label>
+    <label><span>Speed</span><input type="range" id="speed" min="0.1" max="3" step="0.1" value="1"><span class="val" id="speedV"></span></label>
+    <label><span>Zoom</span><input type="range" id="zoom" min="0.5" max="6" step="0.25" value="3"><span class="val" id="zoomV"></span></label>
+  </fieldset>
+
+  <fieldset><legend>Flame overlay</legend>
+    <label><span>Flame</span><input type="checkbox" id="flameOn" checked></label>
+    <label><span>Scale</span><input type="range" id="fscale" min="0.2" max="1.5" step="0.05" value="0.75"><span class="val" id="fscaleV"></span></label>
+    <label><span>Anchor X,Y</span><input type="number" id="ax" step="0.01" value="0.62"> <input type="number" id="ay" step="0.01" value="0.69"></label>
+    <label><span>Throttle</span><input type="range" id="throttle" min="0" max="1" step="0.01" value="0.6"><span class="val" id="throttleV"></span></label>
+    <label><span>Flame FPS</span><input type="range" id="ffps" min="1" max="60" value="30"><span class="val" id="ffpsV"></span></label>
+    <label><span>Jitter</span><input type="checkbox" id="jitter" checked> <span class="hint" style="width:auto">random frame + length/alpha (game style)</span></label>
+    <label><span>Additive</span><input type="checkbox" id="additive" checked> <span class="hint" style="width:auto">'lighter' blend</span></label>
+    <label><span>Glow</span><input type="checkbox" id="glowOn" checked><input type="color" id="glowCol" value="#9670ff"></label>
+    <label><span>Flames first</span><input type="checkbox" id="behind" checked> <span class="hint" style="width:auto">nozzles occlude flame bases</span></label>
+    <label><span>Nozzles</span><input type="checkbox" id="showNoz" checked> <span class="hint" style="width:auto">per-frame anchors from JSON</span></label>
+  </fieldset>
+
+  <fieldset><legend>View</legend>
+    <label><span>Background</span><select id="bgMode"><option value="checker">checkerboard</option><option value="dark">dark</option><option value="space">space</option></select></label>
+    <label><span>Frame box</span><input type="checkbox" id="showBox"></label>
+    <label><span>Whole sheet</span><input type="checkbox" id="showSheet"> <span class="hint" style="width:auto">show atlas grid</span></label>
+  </fieldset>
+  <p class="hint">Keys: Space play/pause · ←/→ step · PgUp/PgDn pose · ↑/↓ throttle · M mirror · F flame · N nozzles · B background.<br>
+  URL options (file://): <code>?ship=../assets/sprites/red_fighter_side_scroller_pi3.png&amp;flame=../assets/sprites/engine_flame_side_scroller_pi3.png&amp;section=side_scroller</code></p>
+</div>
+<div id="main">
+  <div id="stageWrap"><canvas id="stage"></canvas><div id="drop">Drop PNG / JSON files</div></div>
+  <div id="status"></div>
+</div>
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const cv = $('stage'), ctx = cv.getContext('2d');
+
+// ---------------- state ----------------
+const S = {
+  shipJson: null, flameJson: null,
+  shipImgs: {}, flameImgs: {},       // filename -> HTMLImageElement
+  shipImg: null, flameImg: null,     // active images for the current section
+  nozzles: [],                       // [row][col] -> [{x,y},..] normalised
+  rowNames: [],
+  playing: true, frame: 0, acc: 0, flameAcc: 0, flameFrame: 0, last: performance.now(),
+  flameCols: 8, flameRows: 1, flameFW: 128, flameFH: 128,
+};
+const DEFAULT_ROWS = {
+  side_scroller: ['cruise','accelerate','brake','turn_up','turn_down'],
+  top_down: ['N','NE','E','SE','S','SW','W','NW','idle'],
+};
+// game defaults (config.hpp): flame anchor in the flame frame, exhaust direction
+const ANCHORS = { side_scroller: [0.62, 0.69], top_down: [0.50, 0.15] };
+
+function status(msg) { $('status').textContent = msg; }
+function num(id) { return parseFloat($(id).value) || 0; }
+
+// ---------------- loading ----------------
+function readFile(f) {
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onerror = rej;
+    if (/\.json$/i.test(f.name)) { r.onload = () => res(r.result); r.readAsText(f); }
+    else { r.onload = () => res(r.result); r.readAsDataURL(f); }
+  });
+}
+function loadImg(src) {
+  return new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error('image failed: ' + src)); i.src = src; });
+}
+async function addFiles(list) {
+  const msgs = [];
+  for (const f of list) {
+    const isFlame = /flame/i.test(f.name);
+    try {
+      const data = await readFile(f);
+      if (/\.json$/i.test(f.name)) {
+        const j = JSON.parse(data);
+        if (isFlame) S.flameJson = j; else S.shipJson = j;
+        msgs.push((isFlame ? 'flame' : 'ship') + ' json: ' + f.name);
+      } else {
+        const img = await loadImg(data);
+        (isFlame ? S.flameImgs : S.shipImgs)[f.name] = img;
+        msgs.push((isFlame ? 'flame' : 'ship') + ' png: ' + f.name + ` (${img.width}×${img.height})`);
+      }
+    } catch (e) { msgs.push('ERROR ' + f.name + ': ' + e.message); }
+  }
+  applyConfig(true);
+  status(msgs.join('\n'));
+}
+
+// pick the image for the current section: JSON "file" name, else a filename containing the section keyword, else any
+function pickImg(imgs, json, section) {
+  const names = Object.keys(imgs);
+  if (!names.length) return null;
+  const want = json && json[section] && json[section].file;
+  if (want) { const hit = names.find(n => n.endsWith(want) || want.endsWith(n)); if (hit) return imgs[hit]; }
+  const key = section === 'top_down' ? 'top_down' : 'side';
+  return imgs[names.find(n => n.toLowerCase().includes(key)) || names[0]];
+}
+
+function applyConfig(fromLoad) {
+  const sec = $('section').value;
+  const j = S.shipJson, sj = j && (j[sec] || j);
+  S.shipImg = pickImg(S.shipImgs, j, sec);
+  S.flameImg = $('flameOn').dataset.none === '1' ? null : pickImg(S.flameImgs, S.flameJson, sec);
+
+  if (fromLoad || $('section').dataset.prev !== sec) {
+    if (j && j.frame_size_px) { $('fw').value = j.frame_size_px[0]; $('fh').value = j.frame_size_px[1]; }
+    if (sj) {
+      const fw = num('fw'), fh = num('fh');
+      const cols = sj.columns || (sj.sheet_size_px ? sj.sheet_size_px[0] / fw : null) || (S.shipImg ? Math.round(S.shipImg.width / fw) : 8);
+      const rows = sj.rows || (sj.sheet_size_px ? sj.sheet_size_px[1] / fh : null) || (S.shipImg ? Math.round(S.shipImg.height / fh) : 5);
+      $('cols').value = cols; $('rows').value = rows;
+    } else if (S.shipImg) {
+      $('cols').value = Math.max(1, Math.round(S.shipImg.width / num('fw')));
+      $('rows').value = Math.max(1, Math.round(S.shipImg.height / num('fh')));
+    }
+    const a = ANCHORS[sec] || ANCHORS.side_scroller; $('ax').value = a[0]; $('ay').value = a[1];
+    $('section').dataset.prev = sec;
+  }
+  S.nozzles = (sj && sj.nozzles_by_frame) || [];
+  S.rowNames = (sj && (sj.states_by_row || sj.movement_directions_by_row)) || DEFAULT_ROWS[sec] || [];
+
+  // flame sheet geometry
+  const fj = S.flameJson, fsj = fj && (fj[sec] || fj);
+  if (S.flameImg) {
+    S.flameFW = (fj && fj.frame_size_px && fj.frame_size_px[0]) || S.flameImg.height;
+    S.flameFH = (fj && fj.frame_size_px && fj.frame_size_px[1]) || S.flameImg.height;
+    S.flameCols = (fsj && fsj.columns) || Math.max(1, Math.round(S.flameImg.width / S.flameFW));
+    S.flameRows = (fsj && fsj.rows) || Math.max(1, Math.round(S.flameImg.height / S.flameFH));
+  }
+  // pose list
+  const rows = num('rows'), cur = $('row').value;
+  $('row').innerHTML = '';
+  for (let r = 0; r < rows; r++) {
+    const o = document.createElement('option'); o.value = r; o.textContent = r + ': ' + (S.rowNames[r] || 'row ' + r); $('row').appendChild(o);
+  }
+  if (cur !== '' && cur < rows) $('row').value = cur;
+  $('loaded').textContent =
+    'ship: ' + (S.shipImg ? `${S.shipImg.width}×${S.shipImg.height}` : '—') + (S.shipJson ? ' + json' : '') +
+    ' | flame: ' + (S.flameImg ? `${S.flameImg.width}×${S.flameImg.height}, ${S.flameCols}×${S.flameRows}` : '—') +
+    ' | nozzles: ' + (S.nozzles.length ? 'per-frame' : 'none');
+}
+
+// URL / repo loading. PNGs load fine over file://; JSON fetch may be blocked by the browser on file://.
+async function loadUrls(ship, flame, json, flameJson) {
+  const msgs = [];
+  const tryImg = async (url, isFlame) => {
+    try { const img = await loadImg(url); (isFlame ? S.flameImgs : S.shipImgs)[url.split('/').pop()] = img; msgs.push('loaded ' + url); }
+    catch (e) { msgs.push('could not load ' + url); }
+  };
+  const tryJson = async (url, isFlame) => {
+    try { const r = await fetch(url); const j = await r.json(); if (isFlame) S.flameJson = j; else S.shipJson = j; msgs.push('loaded ' + url); }
+    catch (e) { msgs.push('JSON blocked/unavailable (' + url + '): pick it with the file button'); }
+  };
+  for (const u of [].concat(ship || [])) await tryImg(u, false);
+  for (const u of [].concat(flame || [])) await tryImg(u, true);
+  if (json) await tryJson(json, false);
+  if (flameJson) await tryJson(flameJson, true);
+  applyConfig(true); status(msgs.join('\n'));
+}
+$('tryRepo').onclick = () => {
+  const b = '../assets/sprites/';
+  loadUrls([b + 'red_fighter_side_scroller_pi3.png', b + 'red_fighter_top_down_pi3.png'],
+           [b + 'engine_flame_side_scroller_pi3.png', b + 'engine_flame_top_down_pi3.png'],
+           b + 'red_fighter_pi3_sprites.json', b + 'engine_flame_pi3_sprites.json');
+};
+$('clearFlame').onclick = () => { $('flameOn').dataset.none = $('flameOn').dataset.none === '1' ? '0' : '1'; $('clearFlame').textContent = $('flameOn').dataset.none === '1' ? 'Use flame sheet' : 'No flame sheet'; applyConfig(false); };
+
+// ---------------- UI wiring ----------------
+$('files').onchange = e => addFiles([...e.target.files]);
+for (const id of ['section','fw','fh','cols','rows']) $(id).onchange = () => applyConfig(false);
+$('play').onclick = () => { S.playing = !S.playing; $('play').textContent = S.playing ? '⏸ Pause' : '▶ Play'; };
+$('prev').onclick = () => { S.playing = false; $('play').textContent = '▶ Play'; S.frame = (S.frame - 1 + num('cols')) % num('cols'); };
+$('next').onclick = () => { S.playing = false; $('play').textContent = '▶ Play'; S.frame = (S.frame + 1) % num('cols'); };
+for (const id of ['fps','speed','zoom','fscale','throttle','ffps']) {
+  const upd = () => $(id + 'V').textContent = $(id).value; $(id).oninput = upd; upd();
+}
+const wrap = $('stageWrap');
+wrap.addEventListener('dragover', e => { e.preventDefault(); $('drop').style.display = 'flex'; });
+wrap.addEventListener('dragleave', () => $('drop').style.display = 'none');
+wrap.addEventListener('drop', e => { e.preventDefault(); $('drop').style.display = 'none'; addFiles([...e.dataTransfer.files]); });
+window.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' && e.target.type !== 'range' && e.target.type !== 'checkbox') return;
+  const k = e.key, rows = num('rows');
+  if (k === ' ') { $('play').click(); e.preventDefault(); }
+  else if (k === 'ArrowLeft') $('prev').click();
+  else if (k === 'ArrowRight') $('next').click();
+  else if (k === 'PageUp') $('row').value = (+$('row').value - 1 + rows) % rows;
+  else if (k === 'PageDown') $('row').value = (+$('row').value + 1) % rows;
+  else if (k === 'ArrowUp') { $('throttle').value = Math.min(1, num('throttle') + 0.05); $('throttle').oninput(); e.preventDefault(); }
+  else if (k === 'ArrowDown') { $('throttle').value = Math.max(0, num('throttle') - 0.05); $('throttle').oninput(); e.preventDefault(); }
+  else if (k === 'm' || k === 'M') $('mirror').checked = !$('mirror').checked;
+  else if (k === 'f' || k === 'F') $('flameOn').checked = !$('flameOn').checked;
+  else if (k === 'n' || k === 'N') $('showNoz').checked = !$('showNoz').checked;
+  else if (k === 'b' || k === 'B') { const o = $('bgMode'); o.selectedIndex = (o.selectedIndex + 1) % o.options.length; }
+});
+
+// ---------------- rendering ----------------
+let stars = null;
+function background(w, h) {
+  const mode = $('bgMode').value;
+  if (mode === 'checker') {
+    const c = 16; ctx.fillStyle = '#1b1f24'; ctx.fillRect(0, 0, w, h); ctx.fillStyle = '#262b31';
+    for (let y = 0; y < h; y += c) for (let x = ((y / c) & 1) * c; x < w; x += 2 * c) ctx.fillRect(x, y, c, c);
+  } else {
+    ctx.fillStyle = mode === 'space' ? '#05050b' : '#0d1117'; ctx.fillRect(0, 0, w, h);
+    if (mode === 'space') {
+      if (!stars) stars = Array.from({length: 220}, () => [Math.random(), Math.random(), Math.random()]);
+      for (const s of stars) { ctx.fillStyle = `rgba(255,255,255,${0.25 + s[2] * 0.6})`; ctx.fillRect(s[0] * w, s[1] * h, 1 + s[2], 1 + s[2]); }
+    }
+  }
+}
+function nozzlesFor(row, col) {
+  const r = S.nozzles[row]; const f = r && (r[col] || r[0]);
+  return Array.isArray(f) ? f : f ? [f] : [];
+}
+function hash(a, b) { let h = (a * 374761393 + b * 668265263) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; }
+
+function drawFlames(ox, oy, size, row, col, sec, mirror, t) {
+  const noz = nozzlesFor(row, col);
+  if (!noz.length) return;
+  const thr = num('throttle'), fs = size * num('fscale'), side = sec !== 'top_down';
+  const glowRGB = $('glowCol').value;
+  ctx.save();                                            // scope blend + transforms locally
+  if ($('additive').checked) ctx.globalCompositeOperation = 'lighter';
+  noz.forEach((n, k) => {
+    let nx = n.x, ny = n.y;
+    if (mirror) { if (side) nx = 1 - nx; else ny = 1 - ny; }
+    const px = ox + (nx - 0.5) * size, py = oy + (ny - 0.5) * size;
+    // independent per-engine animation + throttle-driven jitter
+    let fr = S.flameFrame, jl = 1, ja = 1;
+    if ($('jitter').checked) {
+      const h = hash(Math.floor(t * num('ffps')), k * 97 + 13);
+      fr = Math.floor(h * S.flameCols * S.flameRows);
+      jl = 1 + (hash(Math.floor(t * num('ffps')), k + 7) - 0.5) * 0.25 * (0.5 + thr);
+      ja = 0.7 + 0.3 * thr * (0.85 + 0.15 * hash(Math.floor(t * num('ffps')), k + 3));
+    }
+    const len = (0.6 + thr * 0.7) * jl;               // throttle stretches along the exhaust axis
+    if ($('glowOn').checked) {
+      const gr = fs * 0.35 * (0.8 + 0.4 * thr) * jl;
+      const ex = side ? (mirror ? 1 : -1) : (mirror ? -1 : 1);
+      const gx = px + (side ? ex * fs * 0.15 : 0), gy = py + (side ? 0 : ex * fs * 0.15);
+      const g = ctx.createRadialGradient(gx, gy, 0, gx, gy, gr);
+      g.addColorStop(0, glowRGB + 'aa'); g.addColorStop(1, glowRGB + '00');
+      ctx.fillStyle = g; ctx.fillRect(gx - gr, gy - gr, gr * 2, gr * 2);
+    }
+    if (S.flameImg) {
+      const c = fr % S.flameCols, r = Math.floor(fr / S.flameCols) % S.flameRows;
+      ctx.save();
+      ctx.globalAlpha = ja;
+      ctx.translate(px, py);                             // 1) to the nozzle anchor (per-frame, from JSON)
+      if (mirror) ctx.scale(side ? -1 : 1, side ? 1 : -1);  // 2) enemy facing = mirrored rig
+      ctx.scale(side ? len : 1, side ? 1 : len);         // 3) throttle stretch along exhaust
+      const ax = num('ax'), ay = num('ay');
+      ctx.drawImage(S.flameImg, c * S.flameFW, r * S.flameFH, S.flameFW, S.flameFH, -ax * fs, -ay * fs, fs, fs);
+      ctx.restore();
+    }
+  });
+  ctx.restore();
+}
+
+function frame(now) {
+  const dpr = window.devicePixelRatio || 1, w = cv.clientWidth, h = cv.clientHeight;
+  if (cv.width !== w * dpr || cv.height !== h * dpr) { cv.width = w * dpr; cv.height = h * dpr; }
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.imageSmoothingEnabled = true;
+  const dt = Math.min(0.1, (now - S.last) / 1000) * num('speed'); S.last = now;
+  const cols = Math.max(1, num('cols')), rows = Math.max(1, num('rows'));
+  if (S.playing) {
+    S.acc += dt; const fd = 1 / num('fps');
+    while (S.acc >= fd) { S.acc -= fd; S.frame = (S.frame + 1) % cols; }
+    S.flameAcc += dt; const ffd = 1 / num('ffps');
+    while (S.flameAcc >= ffd) { S.flameAcc -= ffd; S.flameFrame = (S.flameFrame + 1) % (S.flameCols * S.flameRows); }
+  }
+  S.frame %= cols;
+  background(w, h);
+  const sec = $('section').value, row = Math.min(+$('row').value || 0, rows - 1), col = S.frame;
+  const fw = num('fw'), fh = num('fh'), zoom = num('zoom'), size = Math.max(fw, fh) * zoom;
+  const mirror = $('mirror').checked, t = now / 1000 * num('speed');
+
+  if ($('showSheet').checked && S.shipImg) {           // atlas overview with current cell highlighted
+    const sc = Math.min((w - 20) / S.shipImg.width, (h - 20) / S.shipImg.height, 1);
+    ctx.drawImage(S.shipImg, 10, 10, S.shipImg.width * sc, S.shipImg.height * sc);
+    ctx.strokeStyle = 'rgba(165,139,255,.35)';
+    for (let c = 0; c <= cols; c++) { ctx.beginPath(); ctx.moveTo(10 + c * fw * sc, 10); ctx.lineTo(10 + c * fw * sc, 10 + rows * fh * sc); ctx.stroke(); }
+    for (let r = 0; r <= rows; r++) { ctx.beginPath(); ctx.moveTo(10, 10 + r * fh * sc); ctx.lineTo(10 + cols * fw * sc, 10 + r * fh * sc); ctx.stroke(); }
+    ctx.strokeStyle = '#ffd34d'; ctx.lineWidth = 2; ctx.strokeRect(10 + col * fw * sc, 10 + row * fh * sc, fw * sc, fh * sc); ctx.lineWidth = 1;
+  } else {
+    const ox = w / 2, oy = h / 2;
+    const flames = $('flameOn').checked;
+    if (flames && $('behind').checked) drawFlames(ox, oy, size, row, col, sec, mirror, t);
+    if (S.shipImg) {
+      ctx.save();
+      ctx.translate(ox, oy);
+      if (mirror) ctx.scale(sec === 'top_down' ? 1 : -1, sec === 'top_down' ? -1 : 1);
+      const sh = size * fh / fw;
+      ctx.drawImage(S.shipImg, col * fw, row * fh, fw, fh, -size / 2, -sh / 2, size, sh);
+      ctx.restore();
+    } else {
+      ctx.fillStyle = '#8b949e'; ctx.textAlign = 'center';
+      ctx.fillText('Load a ship sprite sheet (PNG) + its *_sprites.json — or click "Load repo assets"', ox, oy);
+    }
+    if (flames && !$('behind').checked) drawFlames(ox, oy, size, row, col, sec, mirror, t);
+    if ($('showBox').checked) { ctx.strokeStyle = 'rgba(255,211,77,.6)'; ctx.strokeRect(ox - size / 2, oy - size / 2, size, size); }
+    if ($('showNoz').checked) {
+      nozzlesFor(row, col).forEach((n, i) => {
+        let nx = n.x, ny = n.y; if (mirror) { if (sec === 'top_down') ny = 1 - ny; else nx = 1 - nx; }
+        const px = ox + (nx - 0.5) * size, py = oy + (ny - 0.5) * size;
+        ctx.strokeStyle = '#00ff9c'; ctx.beginPath(); ctx.arc(px, py, 5, 0, Math.PI * 2); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(px - 8, py); ctx.lineTo(px + 8, py); ctx.moveTo(px, py - 8); ctx.lineTo(px, py + 8); ctx.stroke();
+        ctx.fillStyle = '#00ff9c'; ctx.font = '11px monospace'; ctx.textAlign = 'left';
+        ctx.fillText(`#${i} ${n.x.toFixed(3)},${n.y.toFixed(3)}`, px + 9, py - 7);
+      });
+    }
+  }
+  $('frameLbl').textContent = ` row ${row} · frame ${col + 1}/${cols}`;
+  requestAnimationFrame(frame);
+}
+
+// query-string loading: ?ship=a.png,b.png&flame=f.png&json=x.json&flamejson=y.json&section=top_down
+(function () {
+  const q = new URLSearchParams(location.search);
+  if (q.get('section')) $('section').value = q.get('section');
+  if (q.get('ship') || q.get('flame') || q.get('json'))
+    loadUrls((q.get('ship') || '').split(',').filter(Boolean), (q.get('flame') || '').split(',').filter(Boolean), q.get('json'), q.get('flamejson'));
+  else applyConfig(true);
+})();
+status('Pick or drop your ship + flame PNG and JSON files (or click "Load repo assets").');
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

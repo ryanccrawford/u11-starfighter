@@ -1,0 +1,133 @@
+{
+ "name": "Fortress Approach",
+ "mode": "top_down",
+ "approach": true,
+ "approach_start": 122,
+ "ground_guns": true,
+ "player": "red_fighter",
+ "music": "music/level_04.ogg",
+ "duration": 180,
+ "clear_color": [
+  6,
+  4,
+  16
+ ],
+ "background": [
+  {
+   "type": "nebula",
+   "speed": 8,
+   "color": [35, 55, 110],
+   "density": 28
+  },
+  {
+   "type": "stars",
+   "speed": 40,
+   "density": 110
+  },
+  {
+   "type": "stars",
+   "speed": 240,
+   "density": 34
+  },
+  {
+   "type": "stars",
+   "speed": 120,
+   "density": 24
+  },
+  {
+   "type": "terrain3d",
+   "model": "planetfall_terrain.json",
+   "speed": 60,
+   "color": [
+    255,
+    255,
+    255
+   ]
+  }
+ ],
+ "waves": [
+  {
+   "time": 1,
+   "enemy": "weaver",
+   "count": 6,
+   "formation": "v",
+   "y": 0.5
+  },
+  {
+   "time": 7,
+   "enemy": "invader",
+   "count": 16,
+   "y": 0.5,
+   "spacing": 60
+  },
+  {
+   "time": 14,
+   "enemy": "scarab",
+   "count": 4,
+   "formation": "line",
+   "y": 0.25,
+   "spacing": 110
+  },
+  {
+   "time": 18,
+   "enemy": "gunship",
+   "count": 2,
+   "formation": "line",
+   "y": 0.5,
+   "spacing": 260
+  },
+  {
+   "time": 24,
+   "enemy": "diver",
+   "count": 6,
+   "formation": "random"
+  },
+  {
+   "time": 25,
+   "enemy": "hornet",
+   "count": 1,
+   "y": 0.15
+  },
+  {
+   "time": 30,
+   "enemy": "hornet",
+   "count": 2,
+   "formation": "line",
+   "y": 0.5,
+   "spacing": 320
+  },
+  {
+   "time": 37,
+   "enemy": "scarab",
+   "count": 6,
+   "formation": "row",
+   "y": 0.6,
+   "spacing": 90
+  },
+  {
+   "time": 44,
+   "enemy": "invader",
+   "count": 16,
+   "y": 0.5,
+   "spacing": 60
+  },
+  {
+   "time": 52,
+   "enemy": "hornet",
+   "count": 1,
+   "y": 0.3
+  },
+  {
+   "time": 53,
+   "enemy": "weaver",
+   "count": 4,
+   "formation": "column",
+   "y": 0.75
+  }
+ ],
+ "difficulty": {
+  "hp": 1.3,
+  "fire_rate": 1.2,
+  "speed": 1.1
+ }
+}

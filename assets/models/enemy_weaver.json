@@ -1,0 +1,21 @@
+{
+ "id": "enemy_weaver",
+ "source": "Veronica bot, Nov 12 2026 (assets/models/src/enemies)",
+ "nozzles": [
+  [
+   0.075,
+   -0.08,
+   -0.99
+  ],
+  [
+   -0.075,
+   -0.08,
+   -0.99
+  ]
+ ],
+ "muzzle": [
+  0.0,
+  0.0,
+  0.959
+ ]
+}

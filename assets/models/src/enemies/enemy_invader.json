@@ -1,0 +1,28 @@
+{
+ "name": "enemy_invader",
+ "file": "enemy_invader.glb",
+ "tris": 4172,
+ "blender_verts": 2124,
+ "bbox_gltf_min": [
+  -0.563,
+  -0.147,
+  -0.544
+ ],
+ "bbox_gltf_max": [
+  0.563,
+  0.147,
+  0.544
+ ],
+ "nozzles_gltf": [
+  [
+   0.096,
+   -0.019,
+   -0.493
+  ],
+  [
+   -0.096,
+   -0.019,
+   -0.493
+  ]
+ ]
+}

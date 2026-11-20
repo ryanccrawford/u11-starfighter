@@ -1,0 +1,40 @@
+{
+  "id": "scarab",
+  "name": "Scarab Scout Drone",
+  "tris_high": 28438,
+  "tris_lod": 5042,
+  "nozzles": [
+    [
+      0.0457,
+      -0.1029,
+      -0.9986
+    ],
+    [
+      -0.0457,
+      -0.1029,
+      -0.9986
+    ]
+  ],
+  "muzzle": [
+    0.0,
+    -0.3545,
+    0.8917
+  ],
+  "idle": "Idle",
+  "fire": "Fire",
+  "fire_sustain": [
+    0.0,
+    0.0
+  ],
+  "weapon_bone_prefix": "W_",
+  "bones": [
+    "Hull",
+    "Eye",
+    "MandL",
+    "MandR",
+    "FinL",
+    "FinR",
+    "Antenna",
+    "W_Gun"
+  ]
+}

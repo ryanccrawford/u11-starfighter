@@ -1,0 +1,28 @@
+{
+ "name": "enemy_looper",
+ "file": "enemy_looper.glb",
+ "tris": 3906,
+ "blender_verts": 1987,
+ "bbox_gltf_min": [
+  -0.618,
+  -0.24,
+  -0.765
+ ],
+ "bbox_gltf_max": [
+  0.618,
+  0.24,
+  0.765
+ ],
+ "nozzles_gltf": [
+  [
+   0.521,
+   -0.077,
+   -0.76
+  ],
+  [
+   -0.521,
+   -0.077,
+   -0.76
+  ]
+ ]
+}

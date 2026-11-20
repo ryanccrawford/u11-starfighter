@@ -1,0 +1,21 @@
+{
+ "id": "enemy_looper",
+ "source": "Veronica bot, Nov 12 2026 (assets/models/src/enemies)",
+ "nozzles": [
+  [
+   0.521,
+   -0.077,
+   -0.76
+  ],
+  [
+   -0.521,
+   -0.077,
+   -0.76
+  ]
+ ],
+ "muzzle": [
+  0.0,
+  0.0,
+  0.727
+ ]
+}

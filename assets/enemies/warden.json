@@ -1,0 +1,12 @@
+{ "id": "warden", "name": "THE WARDEN", "sprite": "sprites/blue_racer_pi3_sprites.json", "model": "enemy_warden.glb", "engineTint": [214, 128, 255], "scale": 4.29, "modelScale": 1.5, "tint": [255, 110, 110], "hp": 260, "speed": 90,
+  "score": 10000, "boss": true,
+  "movement": { "pattern": "boss", "frequency": 1.2 },
+  "weapon": { "type": "spread", "interval": 1.2, "shots": 7 },
+  "phases": [
+    { "hp": 1.0, "pattern": "boss", "weapon": { "type": "spread", "interval": 1.1, "shots": 7 } },
+    { "hp": 0.66, "pattern": "boss", "weapon": { "type": "spiral", "interval": 0.12, "shots": 3 },
+      "minions": { "enemy": "diver", "every": 6, "count": 3 } },
+    { "hp": 0.33, "pattern": "circle", "weapon": { "type": "sweep", "interval": 0.07, "shots": 1 },
+      "minions": { "enemy": "weaver", "every": 5, "count": 4 } }
+  ],
+  "drops": { "chance": 0 } }

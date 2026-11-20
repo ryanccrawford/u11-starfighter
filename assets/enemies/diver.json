@@ -1,0 +1,4 @@
+{ "id": "diver", "sprite": "sprites/blue_racer_pi3_sprites.json", "model": "enemy_diver.glb", "engineTint": [214, 128, 255], "scale": 0.75, "tint": [255, 255, 255], "legacyTint": [255, 140, 140], "hp": 2, "speed": 190, "score": 200,
+  "movement": { "pattern": "dive" },
+  "weapon": { "type": "none" },
+  "drops": { "chance": 0.28, "table": { "shield": 5, "missiles": 1 } } }

@@ -1,0 +1,10 @@
+{
+  "_doc": "Enemy hull dents + death breakup. World units: the playfield is 14 units tall; a side-view enemy is ~1.2 units long. Shard sizes/speeds are screen px x UI scale.",
+  "dentMax": 8, "dentRadius": 0.4, "dentDepthPerDamage": 0.02, "dentMaxDepth": 0.17, "dentMerge": 0.16, "dentDarken": 0.95,
+  "maxBreakups": 4, "chunks": 6,
+  "chunkSpeedMin": 1.6, "chunkSpeedMax": 3.6, "chunkDrag": 1.1, "chunkSpinMin": 2.0, "chunkSpinMax": 7.0,
+  "chunkLife": 1.3, "chunkShrinkStart": 0.55,
+  "chunkExplosionScale": 0.55, "chunkExplosionGain": 0.4, "chunkExplosionDelayMax": 0.25,
+  "shardsMin": 10, "shardsMax": 20, "shardSizeMin": 3, "shardSizeMax": 8,
+  "shardSpeedMin": 90, "shardSpeedMax": 280, "shardDrag": 1.6, "shardLife": 0.9, "maxShards": 500
+}

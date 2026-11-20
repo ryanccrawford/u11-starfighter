@@ -1,0 +1,6 @@
+{ "id": "hornet", "name": "Hornet Gunship",
+  "model": "enemies/hornet/hornet_lod.glb",
+  "scale": 1.1, "tint": [255, 255, 255], "engineTint": [255, 168, 41], "hp": 6, "speed": 105, "score": 400,
+  "movement": { "pattern": "sine", "amplitude": 30, "frequency": 1.2 },
+  "weapon": { "type": "rotary", "interval": 3.2, "shots": 6, "speed": 1.0, "size": 1.0, "damage": 8, "telegraph": 0.6, "spinUp": 0.10, "burstGap": 0.09 },
+  "drops": { "chance": 0.35, "table": { "shield": 3, "weapon": 3, "missiles": 2, "repair": 1 } } }

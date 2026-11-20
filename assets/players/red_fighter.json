@@ -1,0 +1,2 @@
+{ "id": "red_fighter", "sprite": "sprites/red_fighter_pi3_sprites.json", "controller": "flight",
+  "size": 110, "speed": 650, "hp": 100 }

@@ -1,0 +1,10 @@
+{
+  "name": "Shield pickup",
+  "duration": 0.5,
+  "loop": false,
+  "volume": 0.36,
+  "layers": [
+    { "name": "Shield bloom", "type": "osc", "wave": "sine", "filter": "bandpass", "gain": 0.4, "start": 0, "freq": 230, "endFreq": 980, "attack": 0.02, "decay": 0.16, "sustain": 0.2, "release": 0.18, "voices": 3, "detune": 13, "voiceInterval": 0, "fmRatio": 2, "fmDepth": 22, "pan": 0, "cutoff": 2800, "resonance": 1.05, "lfoRate": 5, "lfoDepth": 7, "drive": 0, "sampleRate": 1 },
+    { "name": "Field shimmer", "type": "noise", "wave": "sine", "filter": "highpass", "gain": 0.16, "start": 0.08, "freq": 1600, "endFreq": 4200, "attack": 0.02, "decay": 0.2, "sustain": 0.08, "release": 0.14, "voices": 1, "detune": 0, "voiceInterval": 0, "fmRatio": 1, "fmDepth": 0, "pan": 0, "cutoff": 2200, "resonance": 0.85, "lfoRate": 9, "lfoDepth": 180, "drive": 0, "sampleRate": 1 }
+  ]
+}

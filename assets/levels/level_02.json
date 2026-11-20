@@ -1,0 +1,21 @@
+{ "name": "Invasion Grid", "mode": "top_down", "player": "red_fighter", "music": "music/level_02.ogg", "duration": 180,
+  "clear_color": [4, 10, 16],
+  "background": [
+    { "type": "nebula", "speed": 10, "color": [20, 90, 110], "density": 30 },
+    { "type": "stars", "speed": 50, "density": 100 },
+    { "type": "stars", "speed": 260, "density": 30 },
+    { "type": "stars", "speed": 120, "density": 24 }
+  ],
+  "waves": [
+    { "time": 1,  "enemy": "invader", "count": 24, "y": 0.5, "spacing": 62 },
+    { "time": 14, "enemy": "scarab",  "count": 3, "formation": "line",   "y": 0.25, "spacing": 120 },
+    { "time": 20, "enemy": "diver",   "count": 4, "formation": "random" },
+    { "time": 21, "enemy": "hornet",  "count": 1, "y": 0.2 },
+    { "time": 27, "enemy": "scarab",  "count": 3, "formation": "line",   "y": 0.75, "spacing": 120 },
+    { "time": 32, "enemy": "invader", "count": 28, "y": 0.5, "spacing": 58 },
+    { "time": 46, "enemy": "hornet",  "count": 1, "y": 0.5 },
+    { "time": 52, "enemy": "weaver",  "count": 3, "formation": "column", "y": 0.2 },
+    { "time": 52, "enemy": "weaver",  "count": 3, "formation": "column", "y": 0.8 },
+    { "time": 53, "enemy": "hornet",  "count": 1, "y": 0.5 }
+  ],
+  "difficulty": { "hp": 1.0, "fire_rate": 1.0, "speed": 1.0 } }

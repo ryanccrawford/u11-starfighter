@@ -1,0 +1,16 @@
+{ "name": "The Warden", "mode": "side_scroll", "player": "red_fighter", "boss": "warden",
+  "clear_color": [14, 4, 6],
+  "background": [
+    { "type": "nebula", "speed": 12, "color": [160, 30, 50], "density": 50 },
+    { "type": "stars", "speed": 60, "density": 120 },
+    { "type": "stars", "speed": 300, "density": 40 },
+    { "type": "stars", "speed": 120, "density": 24 }
+  ],
+  "waves": [
+    { "time": 1, "enemy": "weaver",  "count": 5, "formation": "column", "y": 0.5 },
+    { "time": 7, "enemy": "gunship", "count": 1, "y": 0.3 },
+    { "time": 9, "enemy": "gunship", "count": 1, "y": 0.7 },
+    { "time": 11, "enemy": "hornet",  "count": 1, "y": 0.5 },
+    { "time": 13, "enemy": "scarab", "count": 4, "formation": "v", "y": 0.5, "spacing": 100 }
+  ],
+  "difficulty": { "hp": 1.0, "fire_rate": 1.0, "speed": 1.0 } }

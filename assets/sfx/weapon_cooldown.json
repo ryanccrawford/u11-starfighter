@@ -1,0 +1,10 @@
+{
+  "name": "Weapon cooled",
+  "duration": 0.38,
+  "loop": false,
+  "volume": 0.34,
+  "layers": [
+    { "name": "Coolant rise", "type": "osc", "wave": "sine", "filter": "lowpass", "gain": 0.42, "start": 0, "freq": 280, "endFreq": 1220, "attack": 0.01, "decay": 0.1, "sustain": 0.22, "release": 0.14, "voices": 3, "detune": 8, "voiceInterval": 0, "fmRatio": 2, "fmDepth": 16, "pan": 0, "cutoff": 3600, "resonance": 0.6, "lfoRate": 5, "lfoDepth": 5, "drive": 0, "sampleRate": 1 },
+    { "name": "Valve tick", "type": "noise", "wave": "sine", "filter": "bandpass", "gain": 0.16, "start": 0.18, "freq": 2100, "endFreq": 600, "attack": 0.001, "decay": 0.04, "sustain": 0, "release": 0.03, "voices": 1, "detune": 0, "voiceInterval": 0, "fmRatio": 1, "fmDepth": 0, "pan": 0, "cutoff": 2600, "resonance": 1.1, "lfoRate": 0, "lfoDepth": 0, "drive": 0, "sampleRate": 1 }
+  ]
+}

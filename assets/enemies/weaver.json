@@ -1,0 +1,4 @@
+{ "id": "weaver", "sprite": "sprites/blue_racer_pi3_sprites.json", "model": "enemy_weaver.glb", "engineTint": [214, 128, 255], "scale": 0.8, "tint": [255, 255, 255], "legacyTint": [200, 170, 255], "hp": 2, "speed": 130, "score": 150,
+  "movement": { "pattern": "sine", "amplitude": 80, "frequency": 3 },
+  "weapon": { "type": "aimed", "interval": 2.4 },
+  "drops": { "chance": 0.28, "table": { "shield": 5, "weapon": 3, "missiles": 2, "rapid": 1 } } }

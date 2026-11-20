@@ -1,0 +1,28 @@
+{
+ "name": "enemy_grunt",
+ "file": "enemy_grunt.glb",
+ "tris": 3984,
+ "blender_verts": 2020,
+ "bbox_gltf_min": [
+  -0.865,
+  -0.34,
+  -1.003
+ ],
+ "bbox_gltf_max": [
+  0.865,
+  0.34,
+  1.003
+ ],
+ "nozzles_gltf": [
+  [
+   -0.04,
+   -0.16,
+   -0.998
+  ],
+  [
+   0.04,
+   -0.16,
+   -0.998
+  ]
+ ]
+}

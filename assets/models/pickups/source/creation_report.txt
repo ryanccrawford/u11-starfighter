@@ -1,0 +1,5 @@
+weapon: 4420 triangles
+missiles: 4354 triangles
+shield: 4012 triangles
+repair: 4860 triangles
+rapid: 4444 triangles

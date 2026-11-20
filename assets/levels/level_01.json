@@ -1,0 +1,26 @@
+{ "name": "Outer Rim", "mode": "side_scroll", "player": "red_fighter", "intro": "intro", "music": "music/level_01.mp3", "duration": 180,
+  "clear_color": [6, 6, 20],
+  "background": [
+    { "type": "nebula", "speed": 8, "color": [60, 40, 140], "density": 40 },
+    { "type": "planet3d", "model": "nova_planet_surface.glb", "cloud_model": "nova_planet_clouds.glb", "speed": 4, "color": [220, 204, 255], "x": 0.7, "y": 0.35, "size": 1.0, "spin": 0.015, "cloud_spin": 0.022 },
+    { "type": "stars", "speed": 40, "density": 120 },
+    { "type": "stars", "speed": 220, "density": 40 },
+    { "type": "stars", "speed": 120, "density": 24 }
+  ],
+  "waves": [
+    { "time": 1,  "enemy": "grunt",   "count": 5, "formation": "line",   "y": 0.5 },
+    { "time": 6,  "enemy": "weaver",  "count": 4, "formation": "column", "y": 0.3 },
+    { "time": 10, "enemy": "scarab",  "count": 3, "formation": "line",   "y": 0.7, "spacing": 110 },
+    { "time": 15, "enemy": "grunt",   "count": 5, "formation": "v",      "y": 0.5 },
+    { "time": 16, "enemy": "hornet",  "count": 1, "y": 0.15 },
+    { "time": 21, "enemy": "weaver",  "count": 3, "formation": "column", "y": 0.7 },
+    { "time": 25, "enemy": "gunship", "count": 1, "y": 0.5 },
+    { "time": 30, "enemy": "scarab",  "count": 4, "formation": "v",      "y": 0.35, "spacing": 100 },
+    { "time": 35, "enemy": "diver",   "count": 4, "formation": "random" },
+    { "time": 41, "enemy": "hornet",  "count": 1, "y": 0.45 },
+    { "time": 42, "enemy": "grunt",   "count": 4, "formation": "column", "y": 0.85 },
+    { "time": 49, "enemy": "scarab",  "count": 5, "formation": "row",    "y": 0.6, "spacing": 90 },
+    { "time": 55, "enemy": "weaver",  "count": 4, "formation": "v",      "y": 0.4 },
+    { "time": 56, "enemy": "hornet",  "count": 2, "formation": "column", "y": 0.85 }
+  ],
+  "difficulty": { "hp": 1.0, "fire_rate": 0.8, "speed": 1.0 } }

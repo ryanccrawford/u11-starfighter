@@ -1,0 +1,13 @@
+{ "steps": [
+  { "type": "background", "color": [10, 12, 40], "duration": 0 },
+  { "type": "fade", "from_alpha": 1, "to_alpha": 0, "duration": 1.0 },
+  { "type": "title", "text": "CHAPTER 1: THE RIM", "duration": 1.5 },
+  { "type": "actor", "actor": "hero", "sprite": "sprites/red_fighter_pi3_sprites.json", "from": [-0.2, 0.45], "to": [0.3, 0.45], "duration": 2.0, "amount": 1.2 },
+  { "type": "dialog", "speaker": "COMMAND", "portrait": "portraits/command.png",
+    "text": "Pilot, the Warden's fleet has crossed the Outer Rim.\nPush through their lines and find the flagship." },
+  { "type": "actor", "actor": "enemy", "sprite": "sprites/blue_racer_pi3_sprites.json", "from": [1.2, 0.3], "to": [0.75, 0.3], "duration": 1.5 },
+  { "type": "dialog", "speaker": "PILOT", "portrait": "portraits/pilot.png", "text": "Contacts ahead. Weapons hot." },
+  { "type": "sfx", "sfx": "laser" },
+  { "type": "shake", "amount": 0.4, "duration": 0.4 },
+  { "type": "fade", "from_alpha": 0, "to_alpha": 1, "duration": 0.6 }
+] }

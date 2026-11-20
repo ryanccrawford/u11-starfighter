@@ -1,0 +1,21 @@
+{
+ "id": "enemy_diver",
+ "source": "Veronica bot, Nov 12 2026 (assets/models/src/enemies)",
+ "nozzles": [
+  [
+   0.116,
+   -0.114,
+   -0.968
+  ],
+  [
+   -0.116,
+   -0.114,
+   -0.968
+  ]
+ ],
+ "muzzle": [
+  0.0,
+  0.0,
+  0.923
+ ]
+}

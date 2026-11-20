@@ -1,0 +1,10 @@
+{
+  "name": "Repair pickup",
+  "duration": 0.62,
+  "loop": false,
+  "volume": 0.34,
+  "layers": [
+    { "name": "Medical tone", "type": "osc", "wave": "sine", "filter": "lowpass", "gain": 0.38, "start": 0, "freq": 360, "endFreq": 720, "attack": 0.01, "decay": 0.18, "sustain": 0.24, "release": 0.2, "voices": 2, "detune": 6, "voiceInterval": 0, "fmRatio": 2, "fmDepth": 12, "pan": 0, "cutoff": 3000, "resonance": 0.55, "lfoRate": 4, "lfoDepth": 3, "drive": 0, "sampleRate": 1 },
+    { "name": "Nanite fizz", "type": "noise", "wave": "sine", "filter": "bandpass", "gain": 0.12, "start": 0.05, "freq": 2600, "endFreq": 1200, "attack": 0.008, "decay": 0.2, "sustain": 0.06, "release": 0.15, "voices": 1, "detune": 0, "voiceInterval": 0, "fmRatio": 1, "fmDepth": 0, "pan": 0, "cutoff": 3000, "resonance": 0.9, "lfoRate": 13, "lfoDepth": 160, "drive": 0, "sampleRate": 1 }
+  ]
+}

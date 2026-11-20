@@ -1,0 +1,66 @@
+# Build outputs
+/out/
+/output/
+/build-arm64/
+/build/
+/build-*/
+/.vs/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+
+# Backups and work / sandbox dirs
+/backups/
+/3d-test/
+
+# Compiled binaries and compiler artifacts
+*.exe
+*.pdb
+*.ilk
+*.exp
+*.o
+*.d
+*.obj
+/shooter-arm64
+
+# Logs and save files
+*.log
+.u11shooter3d_save
+.u11shooter3d_save.*
+*.sav
+*.save
+
+# Test captures, screenshot dumps, and proof videos
+*.mp4
+*.xwd
+/*.png
+
+# Root test audio preview (not a game asset)
+/sound_preview_t235.mp3
+
+# Python cache and Blender backup files (binaries also live on the share)
+__pycache__/
+*.pyc
+*.pyo
+
+# OS junk
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Asset binaries are not in git. They live on the u11-assets share.
+# See ASSETS.md and tools/assets-sync.ps1.
+assets/**/*.png
+assets/**/*.jpg
+assets/**/*.jpeg
+assets/**/*.glb
+assets/**/*.gltf
+assets/**/*.bin
+assets/**/*.blend
+assets/**/*.blend1
+assets/**/*.wav
+assets/**/*.ogg
+assets/**/*.mp3
+assets/**/*.ttf
+assets/**/*.obj
+assets/**/*.mp4

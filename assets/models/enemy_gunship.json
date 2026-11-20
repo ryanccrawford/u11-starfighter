@@ -1,0 +1,21 @@
+{
+ "id": "enemy_gunship",
+ "source": "Veronica bot, Nov 12 2026 (assets/models/src/enemies)",
+ "nozzles": [
+  [
+   1.27,
+   -0.114,
+   -1.165
+  ],
+  [
+   -1.27,
+   -0.114,
+   -1.165
+  ]
+ ],
+ "muzzle": [
+  0.0,
+  0.0,
+  1.209
+ ]
+}

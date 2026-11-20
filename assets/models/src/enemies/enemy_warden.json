@@ -1,0 +1,28 @@
+{
+ "name": "enemy_warden",
+ "file": "enemy_warden.glb",
+ "tris": 7290,
+ "blender_verts": 3711,
+ "bbox_gltf_min": [
+  -2.21,
+  -0.535,
+  -2.265
+ ],
+ "bbox_gltf_max": [
+  2.21,
+  0.535,
+  2.265
+ ],
+ "nozzles_gltf": [
+  [
+   0.36,
+   -0.175,
+   -2.255
+  ],
+  [
+   -0.36,
+   -0.175,
+   -2.255
+  ]
+ ]
+}

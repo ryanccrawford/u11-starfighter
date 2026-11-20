@@ -1,0 +1,20 @@
+{
+  "type": "shader_terrain",
+  "gridSize": 20,
+  "segments": 128,
+  "heightScale": 0.4,
+  "frequency": 1,
+  "ridgeSharpness": 0,
+  "seed": 44596,
+  "craterDensity": 10,
+  "waterLevel": 2.05,
+  "hasWater": 1,
+  "waterColor": "#a600ff",
+  "waterOpacity": 0.72,
+  "waterRoughness": 0.1,
+  "waterMetalness": 0.25,
+  "lowColor": "#ac2020",
+  "midColor": "#695c4e",
+  "highColor": "#d9e7f2",
+  "flatShading": 0
+}

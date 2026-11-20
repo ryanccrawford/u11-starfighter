@@ -1,0 +1,21 @@
+{
+ "id": "enemy_invader",
+ "source": "Veronica bot, Nov 12 2026 (assets/models/src/enemies)",
+ "nozzles": [
+  [
+   0.096,
+   -0.019,
+   -0.493
+  ],
+  [
+   -0.096,
+   -0.019,
+   -0.493
+  ]
+ ],
+ "muzzle": [
+  0.0,
+  0.0,
+  0.517
+ ]
+}

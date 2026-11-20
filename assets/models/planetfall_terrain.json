@@ -1,0 +1,17 @@
+{
+  "type": "chunk_terrain",
+  "seed": 6006,
+  "chunkSize": 8,
+  "segments": 32,
+  "segmentsArm": 24,
+  "texRes": 256,
+  "heightScale": 1.0,
+  "waterLevel": -1.6,
+  "propDensity": 1.0,
+  "propDensityArm": 0.8,
+  "propDetail": 1,
+  "propFar": 54,
+  "gunSpacing": 11,
+  "gunLane": 5,
+  "workers": 2
+}

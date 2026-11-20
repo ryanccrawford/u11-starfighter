@@ -1,0 +1,13 @@
+{
+  "blastRadius": 2.4, "duration": 0.85,
+  "coreColor": "#ffffff", "fireColor": "#ff7a18", "outerColor": "#b51806",
+  "blastGain": 1.3, "turbulence": 4.5,
+  "ringRadius": 3.8, "ringThickness": 0.08, "ringColor": "#ffbb55", "ringGain": 1.1, "ringSpeed": 7.5,
+  "debrisCount": 160, "debrisSpeedMin": 2.5, "debrisSpeedMax": 9.5, "debrisSizeMin": 2, "debrisSizeMax": 6,
+  "debrisLifeMin": 0.35, "debrisLifeMax": 1.1, "debrisDrag": 1.8,
+  "emberColor": "#ff4d00", "hotEmberColor": "#fffae0", "debrisGain": 1.2,
+  "smokeCount": 26, "smokeColor": "#1b2330", "smokeSize": 1.8, "smokeOpacity": 0.45, "smokeLife": 1.4,
+
+  "_game": "game mapping (not in the Three.js reference): blast diameter = shipBlastMul x on-screen ship size; point sizes x pointScale x UI scale",
+  "shipBlastMul": 2.25, "pointScale": 1.5
+}

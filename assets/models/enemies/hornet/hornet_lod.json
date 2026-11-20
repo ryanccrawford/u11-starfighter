@@ -1,0 +1,40 @@
+{
+  "id": "hornet",
+  "name": "Hornet Gunship",
+  "tris_high": 34182,
+  "tris_lod": 5954,
+  "nozzles": [
+    [
+      -0.5522,
+      -0.0815,
+      -0.4709
+    ],
+    [
+      0.5522,
+      -0.0815,
+      -0.4709
+    ]
+  ],
+  "muzzle": [
+    0.0,
+    -0.2701,
+    1.0
+  ],
+  "idle": "Idle",
+  "fire": "Fire",
+  "fire_sustain": [
+    0.0,
+    0.0
+  ],
+  "weapon_bone_prefix": "W_",
+  "bones": [
+    "Hull",
+    "Head",
+    "FanL",
+    "FanR",
+    "Dish",
+    "Antenna",
+    "W_Barrels",
+    "W_Vents"
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "flashRadius": 1.2, "flashDuration": 0.22, "flashColor": "#ffffff", "plasmaColor": "#0fe6ff", "flashGain": 1.4, "flashSharpness": 18,
+  "sparkCount": 120, "sparkSpeedMin": 3.5, "sparkSpeedMax": 14, "sparkSpread": 140, "sparkAngle": 180,
+  "sparkSizeMin": 1.5, "sparkSizeMax": 5.5, "sparkLifeMin": 0.15, "sparkLifeMax": 0.55,
+  "sparkColor": "#0a85ff", "hotSparkColor": "#e0f7ff", "sparkGain": 1.3, "sparkDrag": 2.2,
+  "scorchRadius": 0.85, "scorchDuration": 1.6, "scorchColor": "#ff5500", "scorchGain": 0.9,
+  "ringRadius": 1.6, "ringThickness": 0.06, "ringColor": "#3cd7ff", "ringSpeed": 6.5,
+
+  "_game": "game mapping: flash diameter = shipFlashMul x on-screen ship size; sparks spray back along the incoming shot (sparkAngle 180 = reversed bolt direction); maxSparks caps all live sparks (count scales down when busy)",
+  "shipFlashMul": 0.6, "pointScale": 1.5, "maxSparks": 600
+}
