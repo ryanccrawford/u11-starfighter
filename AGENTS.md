@@ -9,6 +9,7 @@ Rules and operational constraints for any AI working on the U11 Starfighter repo
 - **One issue and one branch per change:** Every modification must map to a single focused issue and be developed on a dedicated feature branch.
 - **Strictly scoped edits:** Change nothing outside the issue's immediate scope. Do not reformat unrelated files, reorder imports, or refactor working code unless explicitly requested.
 - **Never push to `main`:** All work must be submitted via pull requests against `main`. Direct pushes to `main` are strictly forbidden.
+- **Owner approval before merge:** Do not merge, enable auto-merge, or ask another agent to merge a pull request until Ryan has personally submitted an explicit approval on that PR. Treat only Ryan's own review or clear written authorization in the PR conversation as approval. A bot, agent, automated review, or inferred consent is never approval. GitHub's branch-protection status does not replace this rule.
 - **Assets never go into git:** Game asset binaries (GLB models, Blender `.blend` files, audio WAV/MP3/OGG, textures, PNGs, and TTF fonts) must never be committed to git. Asset synchronization is managed outside git via [assets.manifest](assets.manifest) and `tools/assets-sync.ps1`. See [ASSETS.md](ASSETS.md).
 
 ---
