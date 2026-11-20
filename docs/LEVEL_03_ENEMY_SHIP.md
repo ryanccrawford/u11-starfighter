@@ -1,6 +1,6 @@
 # Level 3: Enemy Ship Infiltration
 
-Replace Asteroid Run with a side-scrolling flight into a vast enemy ship. The stage lasts at least 180 seconds and retains the existing level 3 identity in the campaign.
+A side-scrolling flight through a corridor inside an immense alien warship. The stage lasts 180 seconds and represents Step 2 of Chapter 1 in the campaign.
 
 ## Visual direction
 
@@ -24,7 +24,7 @@ The playfield is a horizontal flight corridor framed above and below by textured
 - Use time-based movement and animation so PC frame rate and the tablet's frame cap do not alter gameplay. Reset all stage state on retry and level transition.
 - Preserve pickup, weapon, touch, and controller behavior, including accessibility of the playfield and action controls.
 - Keep the art modular and bounded in draw calls, triangle count, texture memory and active objects. Profile on the target tablet as well as PC.
-- The campaign currently contains only levels 1 and 2. Add level 3 to the campaign as part of completing the level; retain its existing identifier and saved-progress behavior.
+- Level 3 is fully integrated into the 8-step campaign (`assets/campaign.json`) and Level Select screen with persistent save progress.
 
 ## Art and animation requirements
 
