@@ -1,7 +1,7 @@
 CXX ?= g++
 CXXFLAGS ?= -std=c++17 -O2 -Wall -Wextra -MMD -MP
 LDLIBS = -lraylib -lGL -lm -lpthread -ldl -lrt -lX11
-SRC = main.cpp game.cpp camera_system.cpp ship_physics.cpp world_physics.cpp bulkhead.cpp assets.cpp data.cpp background.cpp particles.cpp weapons.cpp enemies.cpp player.cpp audio.cpp cutscene.cpp profile.cpp render3d.cpp vfx.cpp planet_terrain.cpp planet_render.cpp title.cpp menus.cpp ui_theme.cpp moon_level.cpp flight_audio.cpp
+SRC = main.cpp game.cpp camera_system.cpp ship_physics.cpp world_physics.cpp bulkhead.cpp assets.cpp data.cpp background.cpp particles.cpp weapons.cpp enemies.cpp player.cpp audio.cpp cutscene.cpp profile.cpp render3d.cpp vfx.cpp planet_terrain.cpp planet_render.cpp title.cpp menus.cpp ui_theme.cpp moon_level.cpp trench_run.cpp flight_audio.cpp
 OBJ = $(SRC:%.cpp=build/%.o)
 
 # WSL cross-build configuration for the DOOGEE U11's ARM64 Ubuntu runtime.
