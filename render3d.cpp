@@ -739,7 +739,15 @@ void Render3D::init(const char* root) {
     std::string r = root ? root : "assets";
     root_ = r;
     auto path = [&](const char* rel) { return r + "/" + rel; };
-    player_ = LoadModel(path("models/red_fighter.glb").c_str());
+    player_ = LoadModel(path("models/player_starfighter.glb").c_str());
+    playerAnims_ = LoadModelAnimations(path("models/player_starfighter.glb").c_str(), &playerAnimCount_);
+    for (int i = 0; i < playerAnimCount_; ++i) {
+        const std::string n = playerAnims_[i].name ? playerAnims_[i].name : "";
+        if (n.find("Landing ") == 0 || n.find("Landing_") == 0) playerGearAnims_.push_back(i);
+        else if (n.find("GUN_SPIN_") == 0) playerGunAnims_.push_back(i);
+        else if (n.find("ENGINE_EXHAUST_") == 0) playerExhaustAnims_.push_back(i);
+    }
+    fprintf(stderr, "R3D player model animations=%d gear=%zu guns=%zu exhaust=%zu\n", playerAnimCount_, playerGearAnims_.size(), playerGunAnims_.size(), playerExhaustAnims_.size());
     playerAnchors_ = findAnchors(player_, {-1, 0, 0}, {0, 0, 1});   // t250: red_fighter: nose -X, wings Z
     shipLightsOn_ = !getenv("NOSHIPLIGHTS");
     {   // t250: one soft round sprite for every ship light (hot core + radial falloff, no corners)
@@ -1091,6 +1099,7 @@ void Render3D::shutdown() {
         if (E.m.meshCount > 0) UnloadModel(E.m);
     }
     em_.clear(); emIndex_.clear();
+    if (playerAnims_) UnloadModelAnimations(playerAnims_, playerAnimCount_);
     UnloadModel(player_); UnloadModel(shield_);
     if (dentSkinSh_.id > 0) UnloadShader(dentSkinSh_);
     UnloadTexture(flameTex_);
@@ -1852,6 +1861,23 @@ void Render3D::drawPickup(Vector2 local, int type, float sizePx, Color accent,
     DrawModel(pickup_[type], {0, 0, 0}, 1.f, WHITE);
 }
 
+void Render3D::animatePlayer(float weaponHeat) {
+    if (!playerAnims_ || playerAnimCount_ <= 0) return;
+    playerAnimClock_ += fminf(GetFrameTime(), 0.1f) * 30.f;
+    auto apply = [&](int index, int frame) {
+        if (index < 0 || index >= playerAnimCount_) return;
+        const ModelAnimation& a = playerAnims_[index];
+        if (a.frameCount <= 0 || !IsModelAnimationValid(player_, a)) return;
+        UpdateModelAnimation(player_, a, frame % a.frameCount);
+    };
+    // Keep the landing assemblies stowed in normal flight. Their complete clips remain
+    // in the GLB for the liftoff/landing controller to select later.
+    for (int index : playerGearAnims_) apply(index, 0);
+    for (int index : playerExhaustAnims_) apply(index, (int)playerAnimClock_);
+    const bool firing = weaponHeat > 0.01f;
+    for (int index : playerGunAnims_) apply(index, firing ? (int)playerAnimClock_ : 0);
+}
+
 void Render3D::endPickupBatch() {
     if (!pickupBatch_) return;
     rlDrawRenderBatchActive();
@@ -1866,6 +1892,7 @@ void Render3D::drawShip(Vector2 local, float sizePx, bool facingBack, float pitc
                         const EnemyAnim* anim, Color flameTint, float depth, float weaponHeat,
                         const float (*surfaceFx)[4]) {
     if (!ok_) return;
+    if (player) animatePlayer(weaponHeat);
     if (player) flameTint = {0, 0, 0, 0};  // the player's flame is never tinted
     const int mi = (!player && anim && anim->model > 0 && anim->model < (int)em_.size()) ? anim->model : 0;
     if (!player) {

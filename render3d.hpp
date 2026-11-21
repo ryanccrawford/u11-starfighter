@@ -184,6 +184,10 @@ public:
 private:
     struct Plume { Vector2 nozzle; float angDeg; float unitPx; float scale; bool player; Color tint; float power = 1.f; };  // tint.a 0 = default
     Model player_{};
+    ModelAnimation* playerAnims_ = nullptr;
+    int playerAnimCount_ = 0;
+    std::vector<int> playerGearAnims_, playerGunAnims_, playerExhaustAnims_;
+    float playerAnimClock_ = 0.f;
     Model shield_{};
     static constexpr int kPickupTypes = 5;
     Model pickup_[kPickupTypes]{};
@@ -224,6 +228,7 @@ private:
     static constexpr float kTopDownPlayerScaleMul = 0.5f;
     static constexpr float kSidePlayerScaleMul = 0.85f;  // side player ~15% smaller (Ryan)
     std::vector<Plume> plumes_;
+    void animatePlayer(float weaponHeat);
     // t250: exterior lights mounted on the hulls (nav / strobe / engine / cockpit). Emissive
     // billboards only: they never light the hull (Ryan: sun-only ship lighting, no fill / rim).
     struct LightSprite { Vector3 p; float size; Color c; };
