@@ -455,9 +455,9 @@ static Vector3 rotPitch(Vector3 v, float a) {   // about local right
     return {v.x, v.y * c - v.z * s, v.y * s + v.z * c};
 }
 
-static constexpr float kTurnHold = 1.5f;    // hold the Warden's last pose (continuity)
-static constexpr float kTurnEnd = 13.5f;    // facing the moon
-static constexpr float kSkySwitch = 7.0f;   // sun and planet both out of view: Warden scenery -> moon scenery
+static constexpr float kTurnHold = 1.0f;    // hold the Warden's last pose (continuity)
+static constexpr float kTurnEnd = 8.0f;     // facing the moon
+static constexpr float kSkySwitch = 4.5f;   // sun and planet both out of view: Warden scenery -> moon scenery
 
 float MoonLevel::turnE(float levelTime) const {
     if (!hasEntry_) return 1.f;
@@ -563,11 +563,6 @@ void MoonLevel::moonFrame(const View& view, const Camera3D& c, float levelTime, 
     centre = Vector3Add(c.position, Vector3Scale(Vector3Subtract(focal, c.position), k));
     const float growth = ss(0.0f, 24.0f, levelTime);
     radius = moonBaseRadius_ * Lerp(0.82f, 1.0f, growth) * CameraSystem::worldPerLocal(view) * k;
-    if (trench_ && finaleLT_ < 0.f && levelTime > kTurnEnd) {   // t252: close orbit -> dive onto the base
-        const float z = ss(kTurnEnd, kTrenchStart, levelTime);
-        const float dist = Vector3Distance(centre, c.position);
-        radius = std::min(radius * (1.f + 9.f * z * z), dist * 0.85f);
-    }
 }
 
 Vector3 MoonLevel::deepWorld(const View& view, const Camera3D& c, Vector2 local, float depthWorld) const {
@@ -1494,6 +1489,25 @@ void MoonLevel::update(float dt, float levelTime, Player& player, Weapons& weapo
     (void)vfx;
     if (!initialized_) init(view);
     realLT_ = levelTime;
+    if (trench_ && levelTime < kTrenchStart) {
+        // Smooth approach: ease player ship toward the trench entry station
+        const float F = view.forward(), Lt = view.lateral();
+        const float kx = fminf(1.f, 2.5f * dt);
+        player.pos.x = Lerp(player.pos.x, 0.45f * F, kx);
+        player.pos.y = Lerp(player.pos.y, 0.55f * Lt, kx);
+        if (levelTime >= kTrenchStart - 0.4f) {
+            weapons.lasers.clear();
+            weapons.missiles.clear();
+        }
+        // Swell approach engine drone smoothly into the trench handoff
+        const float fade = ss(std::max(0.f, kTrenchStart - 3.0f), kTrenchStart, levelTime);
+        g_trenchAudio.stamp = GetTime();
+        g_trenchAudio.drone = 0.35f * fade;
+        g_trenchAudio.roar = 0.15f * fade;
+        g_trenchAudio.roarRate = 0.7f;
+        g_trenchAudio.musicDuck = 0.15f * fade;
+        g_trenchAudio.engineDuck = 0.f;
+    }
     if (trench_ && levelTime >= kTrenchStart) {   // t252
         const float tt = levelTime - kTrenchStart;
         if (!(trench_->finaleStarted() && tt >= trench_->finaleTime()))

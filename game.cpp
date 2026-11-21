@@ -969,8 +969,9 @@ void Game::updatePlayer(float dt) {
         const float aim = view.mode == Mode::SideScroll ? pPitch : 0.f;
         const bool primary = autoFire || combatInput.primaryHeld || getenv("AUTOPLAY") != nullptr ||
                              (db.levels()[levelIdx].id == "level_03" && (getenv("BULKHEAD_REVIEW") != nullptr || getenv("TURRET_REVIEW_SHOOT") != nullptr));
+        const bool moonIntro = db.levels()[levelIdx].id == "level_08" && levelTime < MoonLevel::kTrenchStart;
         static const bool holdFire = getenv("HOLD_FIRE") != nullptr;  // capture hook: pilot never shoots
-        bool secondary = combatInput.secondaryPressed && !holdFire && !appr.cam3d && !appr.padLock;
+        bool secondary = combatInput.secondaryPressed && !holdFire && !appr.cam3d && !appr.padLock && !moonIntro;
         if (getenv("TURRET_REVIEW_MISSILE")) {
             static bool launched = false;
             if (!launched && level3Turret.alive && level3Turret.pos.x < view.forward() * .65f) {
@@ -989,7 +990,7 @@ void Game::updatePlayer(float dt) {
         }
         static const float autoWeapon = getenv("AUTOWEAPON") ? (float)atof(getenv("AUTOWEAPON")) : 0.f;   // capture hook: cycle owned primaries
         if (autoWeapon > 0.f) { static float acc = 0.f; acc += dt; if (acc >= autoWeapon) { acc = 0.f; cycleWeapon(1); } }
-        weapons.update(dt, player.pos, enemies.list, view, fx, audio, primary && !holdFire && !appr.cam3d && !appr.padLock, secondary, -aim,
+        weapons.update(dt, player.pos, enemies.list, view, fx, audio, primary && !holdFire && !appr.cam3d && !appr.padLock && !moonIntro, secondary, -aim,
                        turretTarget.active ? &turretTarget : nullptr);
         {   // plasma lance overheat / recovered cues (same designer sounds as the laser heat)
             static bool lockWas = false;
@@ -2857,7 +2858,7 @@ void Game::draw() {
         static int moonFrames = 0; static float nextMoonShot = 0.f;
         if (state == State::Playing && id == "level_08" && g_moonLevel) {
             if (moonFrames++ == 0) grab("moon_first.png");
-            if (levelTime >= nextMoonShot && levelTime < 16.f) {
+            if (levelTime >= nextMoonShot && levelTime < MoonLevel::kTrenchStart) {
                 grab(TextFormat("moonflow_%04.1fs.png", levelTime));
                 fprintf(stderr, "FLOWDIM t=%.2f dim=%.3f\n", levelTime, g_moonLevel->skyDim(levelTime));
                 nextMoonShot += nextMoonShot < 2.f ? 0.5f : 2.f;
