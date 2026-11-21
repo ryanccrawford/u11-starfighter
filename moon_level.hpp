@@ -119,7 +119,7 @@ public:
     bool takeTrenchBlastDeath();
     void endOfFrame();
     void toast(const char* m) { if (trench_) trench_->toast(m); }   // t260
-    static constexpr float kTrenchStart = 16.f;
+    static constexpr float kTrenchStart = 8.0f;
 
     static Vector3 sunDirection();   // world direction TOWARD the sun (the one light)
 
