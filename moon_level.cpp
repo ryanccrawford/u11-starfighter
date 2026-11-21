@@ -455,9 +455,9 @@ static Vector3 rotPitch(Vector3 v, float a) {   // about local right
     return {v.x, v.y * c - v.z * s, v.y * s + v.z * c};
 }
 
-static constexpr float kTurnHold = 1.0f;    // hold the Warden's last pose (continuity)
-static constexpr float kTurnEnd = 8.0f;     // facing the moon
-static constexpr float kSkySwitch = 4.5f;   // sun and planet both out of view: Warden scenery -> moon scenery
+static constexpr float kTurnHold = 0.5f;    // hold the Warden's last pose (continuity)
+static constexpr float kTurnEnd = 3.0f;     // facing deep space / the moon
+static constexpr float kSkySwitch = 1.8f;   // sun and planet both out of view: Warden scenery -> moon scenery
 
 float MoonLevel::turnE(float levelTime) const {
     if (!hasEntry_) return 1.f;
@@ -2418,9 +2418,142 @@ void MoonLevel::drawFinale3D(const Camera3D& c, Vector3 centre, float R, float s
     rlEnableDepthMask();
 }
 
+static Vector3 nlerp3(Vector3 a, Vector3 b, float k) { return Vector3Normalize(Vector3Lerp(a, b, k)); }
+
+void MoonLevel::drawApproach(Render3D& r3d, const View& view, float lt, const Texture2D* glow, float renderScale) {
+    (void)glow; (void)renderScale;
+    const float W = (float)GetScreenWidth(), H = (float)GetScreenHeight();
+    const float appT = lt - kApproachStart;
+    const float dur = kTrenchStart - kApproachStart;
+    const float u = Clamp(appT / dur, 0.f, 1.f);
+
+    // Planetfall-style camera orbit:
+    // o = 0: broadside (side-view looking at the ship from the right)
+    // o = 1: directly behind the ship looking forward along the flight path
+    const float o = smoother(0.12f, 0.58f, u);
+
+    // Planetfall-style distance curve:
+    // dist shrinks from 22.0 down to 1.05 Moon radii
+    const float dist = 22.0f * powf(1.05f / 22.0f, powf(u, 0.72f));
+
+    // Flight vectors: forward is -Z, up is +Y, right is +X
+    const Vector3 FW{0, 0, -1}, Y{0, 1, 0}, R0{1, 0, 0};
+
+    // Camera orbit around the ship:
+    const float yaw = -0.5f * PI * (1.f - o);
+    Vector3 V{-cosf(yaw), 0.f, sinf(yaw)};
+    V = Vector3Normalize(Vector3Add(V, Vector3Scale(Y, tanf(3.5f * DEG2RAD * o)))); // camera slightly below, looking slightly up
+    const float Dc = Lerp(28.f, 15.f, o);
+    const float fov = Lerp(50.f, 70.f, o);
+
+    // High-altitude flight path: ship dives slightly toward the Moon limb
+    // Ship position in world coordinates (starts in orbit, glides forward):
+    const Vector3 shipP{0.f, Lerp(60.f, 0.f, ss(0.4f, 1.0f, u)), -u * 140.f};
+
+    Vector3 camEye = Vector3Subtract(shipP, Vector3Scale(V, Dc));
+    Vector3 camTgt = Vector3Add(shipP, Vector3Add(Vector3Scale(FW, Lerp(3.f, 30.f, o)), Vector3Scale(Y, Lerp(0.f, 1.f, o))));
+    const Vector3 camFwd = Vector3Normalize(Vector3Subtract(camTgt, camEye));
+    const Vector3 camRgt = Vector3Normalize(Vector3CrossProduct(camFwd, Y));
+    const Vector3 camUp = Vector3CrossProduct(camRgt, camFwd);
+
+    // Aerodynamic / velocity buffeting shudder (deterministic sine superposition)
+    const float shakeAmp = ss(0.2f, 0.6f, u) * (1.f - ss(0.92f, 1.0f, u)) * 0.015f;
+    const float jx = shakeAmp * (sinf(lt * 31.f) + 0.6f * sinf(lt * 53.f + 1.3f));
+    const float jy = shakeAmp * (cosf(lt * 37.f) + 0.5f * sinf(lt * 61.f + 0.4f));
+    camTgt = Vector3Add(camTgt, Vector3Add(Vector3Scale(camRgt, jx * Dc), Vector3Scale(camUp, jy * Dc)));
+
+    Camera3D c{};
+    c.position = camEye;
+    c.target = camTgt;
+    c.up = camUp;
+    c.fovy = fov;
+    c.projection = CAMERA_PERSPECTIVE;
+
+    // ---- Planetfall Horizon-Aligning Moon Direction (pdir) ----
+    // In side view (o=0): Moon is placed ahead of the ship along its travel path (side).
+    // As o -> 1: pdir aligns with traj (centered in X, tilted slightly down in Y so the forward
+    // ray dives into the limb). Because traj.x == 0, the Moon's limb forms a PERFECTLY LEVEL
+    // horizontal horizon across the screen!
+    const Vector3 side = Vector3Normalize({0.22f, -0.12f, -0.96f});
+    const float th = asinf(fminf(1.f, 0.92f / dist));
+    const Vector3 traj = Vector3Normalize(Vector3Subtract(Vector3Scale(FW, cosf(th)), Vector3Scale(Y, sinf(th))));
+    const Vector3 pdir = nlerp3(side, traj, ss(0.10f, 0.60f, u));
+
+    // Sky backdrop: stars, nebula, sun with corona bloom, and the purple mother planet
+    ClearBackground(Color{3, 3, 7, 255});
+    {
+        Render3D::ApproachScene sc;
+        sc.f = camFwd; sc.u = camUp;
+        sc.sun = sunDirection();
+        sc.pdir = Vector3Normalize({-0.42f, 0.16f, -0.89f}); // parent planet in lunar sky
+        sc.fovy = c.fovy; sc.sunR = 3.2f * DEG2RAD; sc.planet = true; sc.dist = 2.45f; sc.atmoK = 0.65f;
+        sc.tint = {210, 150, 240, 255}; sc.stars = 1.0f; sc.nebula = 0.35f; sc.nebulaTint = {55, 35, 100, 255};
+        sc.time = lt; sc.starSpeed = 0.f;
+        Render3D::ApproachOut out;
+        r3d.drawApproachScenery(sc, out);
+    }
+
+    rlDrawRenderBatchActive();
+    rlSetClipPlanes(0.4, 9000.0);
+    rlEnableDepthTest();
+    BeginMode3D(c);
+
+    // 1. Draw the 3D Moon sphere
+    const float moonRadius = 500.f;
+    const Vector3 moonCenter = Vector3Add(camEye, Vector3Scale(pdir, dist * moonRadius));
+    if (wholeMoonLoaded_) {
+        const Matrix moonRot = moonRotation(lt);
+        const Matrix M = MatrixMultiply(MatrixMultiply(moonRot, MatrixScale(moonRadius, moonRadius, moonRadius)),
+                                        MatrixTranslate(moonCenter.x, moonCenter.y, moonCenter.z));
+        const float one = 1.f;
+        if (moonShaderLoaded_) {
+            const Vector3 L = sunDirection();
+            const Vector3 lightDir = Vector3Negate(L);
+            SetShaderValue(moonShader_, GetShaderLocation(moonShader_, "lightDir"), &lightDir, SHADER_UNIFORM_VEC3);
+            SetShaderValue(moonShader_, GetShaderLocation(moonShader_, "camPos"), &c.position, SHADER_UNIFORM_VEC3);
+            SetShaderValue(moonShader_, GetShaderLocation(moonShader_, "forceOuter"), &one, SHADER_UNIFORM_FLOAT);
+            const float zero = 0.f;
+            SetShaderValue(moonShader_, GetShaderLocation(moonShader_, "crackProgress"), &zero, SHADER_UNIFORM_FLOAT);
+        }
+        moonMat_.maps[MATERIAL_MAP_DIFFUSE].color = WHITE;
+        for (int i = 0; i < wholeMoonModel_.meshCount; i++) DrawMesh(wholeMoonModel_.meshes[i], moonMat_, M);
+    }
+
+    // 2. Draw the player ship
+    // Ship orientation: aligned along flight vector with slight bank into the turn
+    const float bankAngle = sinf(o * PI) * -18.f * DEG2RAD;
+    const float pitchAngle = Lerp(0.f, -10.f * DEG2RAD, ss(0.5f, 1.0f, u));
+    Matrix M_ship = MatrixMultiply(MatrixRotateZ(bankAngle), MatrixRotateX(pitchAngle));
+    M_ship = MatrixMultiply(M_ship, MatrixTranslate(shipP.x, shipP.y, shipP.z));
+    const float flamePower = Lerp(1.4f, 2.0f, ss(0.2f, 0.7f, u));
+    trench_->drawApproachShip(c, M_ship, flamePower);
+
+    EndMode3D();
+    rlSetClipPlanes(RL_CULL_DISTANCE_NEAR, RL_CULL_DISTANCE_FAR);
+    rlDrawRenderBatchActive();
+    rlDisableDepthTest();
+
+    // Cinematic banner: "MOON BASE // ORBITAL APPROACH"
+    if (u < 0.65f) {
+        const float bannerAlpha = ss(0.05f, 0.20f, u) * (1.f - ss(0.45f, 0.65f, u));
+        if (bannerAlpha > 0.01f) {
+            const char* title = "MOON BASE // ORBITAL APPROACH";
+            const int fs = (int)(24 * view.s);
+            const int tw = MeasureText(title, fs);
+            const int cx = (int)(W * 0.5f - tw * 0.5f);
+            const int cy = (int)(H * 0.82f);
+            DrawText(title, cx, cy, fs, Fade(SKYBLUE, 0.85f * bannerAlpha));
+        }
+    }
+}
+
 // ------------------------------------------------------------------ t252 trench run hooks
 void MoonLevel::drawOwnedFrame(Render3D& r3d, const View& view, float lt, const Texture2D* glow, float renderScale) {
     if (!trench_) return;
+    if (lt < kTrenchStart) {
+        drawApproach(r3d, view, lt, glow, renderScale);
+        return;
+    }
     if (finaleLT_ < 0.f) { trench_->draw(r3d, view, lt - kTrenchStart, renderScale); return; }
     // t267: the moon is destroyed completely (drawFinale3D: build, breach, tear, plates, rocks, fire, rings) + the escaping ship
     ClearBackground(Color{6, 4, 16, 255});

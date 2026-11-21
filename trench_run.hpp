@@ -38,6 +38,7 @@ public:
     void draw(Render3D& r3d, const View& view, float t, float renderScale);
     // the moon-explosion shot (MoonLevel's camera): the ship racing away, with its fire trail
     void drawEscapeShip(const Camera3D& c, Vector3 moonCentre, float moonR, float since);
+    void drawApproachShip(const Camera3D& c, Matrix M, float flamePower = 1.0f);
     bool finaleStarted() const { return finaleT_ >= 0.f; }
     float finaleTime() const { return finaleT_; }      // trench time the moon shot starts
     float detonateTime() const { return detT_; }

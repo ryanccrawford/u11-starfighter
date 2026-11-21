@@ -1529,20 +1529,9 @@ Camera3D TrenchRun::makeCamera(float t) {
         c.position = eye; c.target = Vector3Add(plPos_, Vector3Add(Vector3Scale(F, 30.f), {0, 1.f, 0}));
         c.up = rotAxis({0, 1, 0}, F, pl_.bank * 0.22f);
         const float dEnd = descEnd();
-        if (t < dEnd + 0.8f) {   // t267: the descent, shot like Planetfall: broadside, swinging round behind, buffet settling
-            const float o = descDone_ ? std::max(sstep(0.3f, 4.2f, t), sstep(descDoneT_ - 0.4f, descDoneT_ + 0.8f, t)) : sstep(0.3f, 4.2f, t);
-            const Vector3 Vd = Vector3Normalize(Vector3Add(Vector3Scale(R, cosf(o * PI * 0.5f)), Vector3Scale(F, -sinf(o * PI * 0.5f))));
-            const float Dc = Lerp(30.f, 17.f, o);
-            const Vector3 eyeP = Vector3Add(Vector3Add(plPos_, Vector3Scale(Vd, Dc)), {0, Dc * Lerp(-0.12f, 0.2f, o), 0});
-            Vector3 tgtP = Vector3Add(plPos_, Vector3Add(Vector3Scale(F, Lerp(2.f, 30.f, o)), {0, Lerp(0.f, 1.f, o), 0}));
-            const Vector3 cf = Vector3Normalize(Vector3Subtract(tgtP, eyeP));
-            const Vector3 cr = Vector3Normalize(Vector3CrossProduct(cf, {0, 1, 0})), cu = Vector3CrossProduct(cr, cf);
-            const float ja = descShake_ * 0.022f * Vector3Distance(eyeP, tgtP);   // angular jitter, as Planetfall's
-            tgtP = Vector3Add(tgtP, Vector3Add(Vector3Scale(cr, ja * (sinf(t * 31.f) + 0.6f * sinf(t * 53.f + 1.3f))), Vector3Scale(cu, ja * (cosf(t * 37.f) + 0.5f * sinf(t * 61.f + 0.4f)))));
-            const float k = descDone_ ? std::max(sstep(dEnd - 1.6f, dEnd + 0.6f, t), sstep(descDoneT_, descDoneT_ + 1.2f, t)) : sstep(dEnd - 1.6f, dEnd + 0.6f, t);
-            c.position = Vector3Lerp(eyeP, c.position, k); c.target = Vector3Lerp(tgtP, c.target, k);
-            c.up = Vector3Normalize(Vector3Lerp({0, 1, 0}, c.up, k));
-            fov = Lerp(Lerp(50.f, 70.f, o), fov, k);
+        if (t < dEnd + 0.8f) {   // descent into trench: high-speed dive in chase view
+            const float ja = descShake_ * 0.015f * Vector3Distance(c.position, c.target);
+            c.target = Vector3Add(c.target, Vector3Add(Vector3Scale(R, ja * sinf(t * 31.f)), Vector3Scale({0, 1, 0}, ja * cosf(t * 37.f))));
         }
     } else if (mode == 1) {   // cockpit-forward FPV
         Vector3 U = rotAxis({0, 1, 0}, R, pl_.pitch); U = rotAxis(U, F, pl_.bank * 0.8f);
@@ -2056,6 +2045,37 @@ void TrenchRun::drawEscapeShip(const Camera3D& c, Vector3 moonCentre, float moon
     }
     DrawBillboard(c, soft_, p, size * 2.f, Fade(Color{255, 190, 120, 255}, 0.9f));
     DrawBillboard(c, soft_, p, size * 0.8f, WHITE);
+    EndBlendMode();
+    rlEnableDepthMask();
+}
+
+void TrenchRun::drawApproachShip(const Camera3D& c, Matrix M, float flamePower) {
+    if (!playerOk_ || deadT_ >= 0.f) return;
+    const Matrix MW = MatrixMultiply(player_.transform, M);
+    drawShipModel(player_, M, 0.f, Color{255, 60, 40, 255}, 0.f);
+
+    // Nav lights + engine nozzle exhaust
+    rlDisableDepthMask();
+    BeginBlendMode(BLEND_ADDITIVE);
+    const float tm = (float)GetTime();
+    const Vector3 wl = Vector3Transform(pWingL_, MW), wr = Vector3Transform(pWingR_, MW);
+    const Vector3 nz = Vector3Transform(pNoz_, MW);
+
+    // Wingtip nav lights (port red, starboard green)
+    const float bl = sinf(tm * 5.f) > 0 ? 1.f : 0.25f;
+    DrawBillboard(c, soft_, wl, 0.65f, Fade(Color{255, 40, 30, 255}, bl));
+    DrawBillboard(c, soft_, wr, 0.65f, Fade(Color{40, 255, 80, 255}, bl));
+
+    // Afterburner plumes streaming backward along flight axis
+    const Vector3 back = Vector3Normalize(Vector3Transform({0, 0, 1}, M));
+    const float eg = 1.8f * flamePower;
+    DrawBillboard(c, soft_, nz, 2.2f * eg, Fade(Color{255, 150, 80, 255}, 0.85f));
+    DrawBillboard(c, soft_, nz, 1.0f * eg, Fade(WHITE, 0.9f));
+    for (int i = 0; i < 6; i++) {
+        const Vector3 p = Vector3Add(nz, Vector3Scale(back, (1.2f + i * 1.5f) * eg));
+        const float sz = (1.4f + i * 0.8f) * eg;
+        DrawBillboard(c, fire_, p, sz, Fade(Color{255, (unsigned char)(180 - i * 20), (unsigned char)(80 - i * 10), 255}, 0.7f * (1.f - i / 6.f)));
+    }
     EndBlendMode();
     rlEnableDepthMask();
 }

@@ -111,15 +111,17 @@ public:
     void draw3D(Render3D& r3d, const View& view, float levelTime);
     void draw2D(const View& view, float s) const;
     void shutdown();
-    // t252: the trench run owns the frame from kTrenchStart until the moon-explosion shot
-    bool ownsFrame(float levelTime) const { return trench_ && levelTime >= kTrenchStart; }
+    // Orbital approach and trench run own the frame from kApproachStart until the moon-explosion shot
+    bool ownsFrame(float levelTime) const { return trench_ && levelTime >= kApproachStart; }
+    void drawApproach(Render3D& r3d, const View& view, float lt, const Texture2D* glow, float renderScale);
     void drawOwnedFrame(Render3D& r3d, const View& view, float levelTime, const Texture2D* glow, float renderScale);
     bool levelDone() const { return finaleLT_ >= 0.f && realLT_ - finaleLT_ > kFinaleEnd; }
     // t267: the ship stayed in the trench and the blast took it: Game takes the life (once)
     bool takeTrenchBlastDeath();
     void endOfFrame();
     void toast(const char* m) { if (trench_) trench_->toast(m); }   // t260
-    static constexpr float kTrenchStart = 8.0f;
+    static constexpr float kApproachStart = 3.0f;
+    static constexpr float kTrenchStart = 11.0f;
 
     static Vector3 sunDirection();   // world direction TOWARD the sun (the one light)
 

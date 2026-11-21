@@ -15,7 +15,8 @@ int main() {
     unsigned flags = FLAG_BORDERLESS_WINDOWED_MODE;
     if (getenv("MSAA")) flags |= FLAG_MSAA_4X_HINT;  // costly on Mali via DRI3; off by default
     // HIDDEN_WINDOW=1: test/capture runs never pop a window over the desktop (GL still renders; captures read the back buffer)
-    if (getenv("HIDDEN_WINDOW")) flags |= FLAG_WINDOW_HIDDEN;
+    const char* hw = getenv("HIDDEN_WINDOW");
+    if (hw && *hw && *hw != '0') flags |= FLAG_WINDOW_HIDDEN;
     SetConfigFlags(flags);
     InitWindow(0, 0, "U11 Starfighter");
 #ifdef _WIN32
