@@ -1261,7 +1261,7 @@ Matrix Render3D::makeShipMatrix(Vector3 pos, bool facingBack, float pitch, float
             // hence the minus) comes from the pitch slot and is non-zero only on diagonal forward moves.
             R = MatrixMultiply(MatrixRotateX(rl + profile_), MatrixRotateY(-Clamp(pitch, -0.17f, 0.17f)));
             if (climbPitch_ != 0.f) R = MatrixMultiply(MatrixRotateZ(-climbPitch_), R);   // Liftoff pull-up: nose (-X) toward +Y
-            R = MatrixMultiply(R, MatrixRotateY(-PI / 2.f));                    // nose -> screen up (-Z)
+            R = MatrixMultiply(R, MatrixRotateY(PI));                          // nose -X -> screen right (+X)
         } else {  // side: unchanged demo basis (looked right to Ryan)
             R = MatrixRotateY(PI);
             R = MatrixMultiply(R, MatrixRotateX(rl));
