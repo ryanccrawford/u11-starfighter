@@ -748,7 +748,12 @@ void Render3D::init(const char* root) {
         else if (n.find("ENGINE_EXHAUST_") == 0) playerExhaustAnims_.push_back(i);
     }
     fprintf(stderr, "R3D player model animations=%d gear=%zu guns=%zu exhaust=%zu\n", playerAnimCount_, playerGearAnims_.size(), playerGunAnims_.size(), playerExhaustAnims_.size());
-    playerAnchors_ = findAnchors(player_, {-1, 0, 0}, {0, 0, 1});   // t250: red_fighter: nose -X, wings Z
+    playerAnchors_ = findAnchors(player_, {-1, 0, 0}, {0, 0, 1});
+    // The player GLB has dedicated "Wing navigation lamp" meshes centred at x=1.0,
+    // y=0.13, z=+/-4.4. The generic extrema search includes detached animated parts
+    // (one side reaches z=7.96), so mount this ship's glow on its actual lamp housings.
+    playerAnchors_.port = {1.0f, 0.13f, 4.4f};
+    playerAnchors_.stbd = {1.0f, 0.13f, -4.4f};
     shipLightsOn_ = !getenv("NOSHIPLIGHTS");
     {   // t250: one soft round sprite for every ship light (hot core + radial falloff, no corners)
         const int N = 64;
