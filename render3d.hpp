@@ -227,6 +227,9 @@ private:
     // Overhead player only: half current on-screen size (shipScale_ * this). Side/enemies unchanged.
     static constexpr float kTopDownPlayerScaleMul = 0.5f;
     static constexpr float kSidePlayerScaleMul = 0.85f;  // side player ~15% smaller (Ryan)
+    // The replacement starfighter is authored at a larger world-unit scale than
+    // the legacy normalized player mesh.
+    static constexpr float kPlayerModelScale = 0.15f;
     std::vector<Plume> plumes_;
     void animatePlayer(float weaponHeat);
     // t250: exterior lights mounted on the hulls (nav / strobe / engine / cockpit). Emissive
