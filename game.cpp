@@ -1021,7 +1021,9 @@ void Game::damagePlayer(int dmg, Vector2 at) {
     fx.sparks(view.toScreen(at), view.dirToScreen({-1, 0}), 14, absorbed ? SKYBLUE : ORANGE, 300 * s);
     audio.play(Sfx::PlayerHit, 0.7f);
     if (player.hp <= 0) {
-        fx.explosion(view.toScreen(player.pos), 1.8f * s, SKYBLUE);
+        const Vector2 wreckScreen = view.toScreen(player.pos);
+        fx.explosion(wreckScreen, 1.8f * s, SKYBLUE);
+        vfx.explode(wreckScreen, shipPx(1.f) * CameraSystem::depthScale(view, player.hiddenAxis), 1.f);
         audio.play(Sfx::BigExplosion);
         engineMute = 1.2f;  // engine fades out with the ship, back after the respawn
         shake = kShakeMax;

@@ -793,7 +793,8 @@ void Render3D::init(const char* root) {
         // Overhead: the camera sees the hull's width (x) instead of its height (y), and the ship is drawn
         // smaller (kTopDownPlayerScaleMul vs kSidePlayerScaleMul). Keep the side view's gap above/below the
         // hull (radius - half height), converted to the same on-screen size, beside the hull from above.
-        const float halfW = fabsf(b.max.x - c.x), halfH = fabsf(b.max.y - c.y);
+        const float halfW = fabsf(b.max.x - c.x);
+        const float halfH = fabsf(b.max.y - c.y);
         const float sideGap = shieldBaseRadius_ - halfH;
         shieldTopRadius_ = fmaxf(shieldBaseRadius_, halfW + sideGap * (kSidePlayerScaleMul / kTopDownPlayerScaleMul) * kShieldTopGapMatch);
         fprintf(stderr, "SHIELD side r=%.3f top r=%.3f (half w=%.3f h=%.3f gap=%.3f)\n", shieldBaseRadius_, shieldTopRadius_, halfW, halfH, sideGap);
@@ -845,9 +846,31 @@ void Render3D::init(const char* root) {
     metalEnvStrength_ = GetShaderLocation(metal_, "envStrength");
     metalOpacity_ = GetShaderLocation(metal_, "opacity");
     SetShaderValue(metal_, GetShaderLocation(metal_, "lightDir"), &L, SHADER_UNIFORM_VEC3);
+    playerGlassSh_ = LoadShaderFromMemory(METAL_VS, METAL_FS);
+    playerGlassSh_.locs[SHADER_LOC_VERTEX_POSITION] = GetShaderLocationAttrib(playerGlassSh_, "vertexPosition");
+    playerGlassSh_.locs[SHADER_LOC_VERTEX_TEXCOORD01] = GetShaderLocationAttrib(playerGlassSh_, "vertexTexCoord");
+    playerGlassSh_.locs[SHADER_LOC_VERTEX_NORMAL] = GetShaderLocationAttrib(playerGlassSh_, "vertexNormal");
+    playerGlassSh_.locs[SHADER_LOC_MATRIX_MVP] = GetShaderLocation(playerGlassSh_, "mvp");
+    playerGlassSh_.locs[SHADER_LOC_MATRIX_MODEL] = GetShaderLocation(playerGlassSh_, "matModel");
+    playerGlassSh_.locs[SHADER_LOC_MATRIX_NORMAL] = GetShaderLocation(playerGlassSh_, "matNormal");
+    playerGlassSh_.locs[SHADER_LOC_COLOR_DIFFUSE] = GetShaderLocation(playerGlassSh_, "colDiffuse");
+    playerGlassSh_.locs[SHADER_LOC_MAP_DIFFUSE] = GetShaderLocation(playerGlassSh_, "texture0");
+    glassEye_ = GetShaderLocation(playerGlassSh_, "eye");
+    glassMetalness_ = GetShaderLocation(playerGlassSh_, "metalness");
+    glassRoughness_ = GetShaderLocation(playerGlassSh_, "roughness");
+    glassEnvStrength_ = GetShaderLocation(playerGlassSh_, "envStrength");
+    glassOpacity_ = GetShaderLocation(playerGlassSh_, "opacity");
+    SetShaderValue(playerGlassSh_, GetShaderLocation(playerGlassSh_, "lightDir"), &L, SHADER_UNIFORM_VEC3);
     for (int i = 0; i < player_.materialCount; i++) {
         player_.materials[i].shader = lit_;
-        player_.materials[i].maps[MATERIAL_MAP_DIFFUSE].color = WHITE;
+    }
+    // The imported GLB keeps separate metallic and canopy materials. Give those surfaces
+    // the existing solar specular shader; preserve their authored base colors.
+    for (int i : {1, 3, 7}) {
+        if (i < player_.materialCount) player_.materials[i].shader = metal_;
+    }
+    for (int i : {2, 9}) {
+        if (i < player_.materialCount) player_.materials[i].shader = playerGlassSh_;
     }
     shield_ = LoadModelFromMesh(GenMeshSphere(1.f, 32, 24));
     shieldSh_ = LoadShaderFromMemory(SHIELD_VS, SHIELD_FS);
@@ -1109,6 +1132,7 @@ void Render3D::shutdown() {
     ringTex_ = {};
     UnloadShader(flameSh_); UnloadShader(heatSh_); UnloadShader(shieldSh_); if (pickupSh_.id > 0) UnloadShader(pickupSh_);
     if (metal_.id > 0) UnloadShader(metal_);
+    if (playerGlassSh_.id > 0) UnloadShader(playerGlassSh_);
     if (dentSh_.id != lit_.id) UnloadShader(dentSh_); UnloadShader(lit_);
     if (titleGlyphSh_.id > 0 && titleGlyphSh_.id != rlGetShaderIdDefault()) UnloadShader(titleGlyphSh_);
     UnloadShader(planetSh_); UnloadShader(cloudSh_); UnloadShader(terrainSh_); UnloadShader(terrainProcSh_);
@@ -1227,7 +1251,9 @@ Vector2 Render3D::muzzleLocal(int model, Vector2 shipLocal, float depth) const {
 }
 
 Vector3 Render3D::nozzleModel(int i) const {
-    static const Vector3 n[2] = {{0.735f, -0.13f, -0.07f}, {0.735f, -0.13f, 0.07f}};
+    // Replacement starfighter engine outlets, in the player model basis:
+    // nose -X, aft +X, wings Z, up +Y.
+    static const Vector3 n[2] = {{4.27f, 0.22f, -0.98f}, {4.27f, 0.22f, 0.98f}};
     return n[i & 1];
 }
 
@@ -1259,7 +1285,7 @@ Matrix Render3D::makeShipMatrix(Vector3 pos, bool facingBack, float pitch, float
             // hence the minus) comes from the pitch slot and is non-zero only on diagonal forward moves.
             R = MatrixMultiply(MatrixRotateX(rl + profile_), MatrixRotateY(-Clamp(pitch, -0.17f, 0.17f)));
             if (climbPitch_ != 0.f) R = MatrixMultiply(MatrixRotateZ(-climbPitch_), R);   // Liftoff pull-up: nose (-X) toward +Y
-            R = MatrixMultiply(R, MatrixRotateY(-PI / 2.f));                    // nose -> screen up (-Z)
+            R = MatrixMultiply(R, MatrixRotateY(PI));                          // nose -X -> screen right (+X)
         } else {  // side: unchanged demo basis (looked right to Ryan)
             R = MatrixRotateY(PI);
             R = MatrixMultiply(R, MatrixRotateX(rl));
@@ -1292,6 +1318,11 @@ void Render3D::setSceneLight(bool on, Vector3 lightDir, float metalAmb, float te
     if (metal_.id > 0) {
         SetShaderValue(metal_, GetShaderLocation(metal_, "lightDir"), &L, SHADER_UNIFORM_VEC3);
         SetShaderValue(metal_, GetShaderLocation(metal_, "amb"), &ma, SHADER_UNIFORM_FLOAT);
+    }
+    if (playerGlassSh_.id > 0) {
+        SetShaderValue(playerGlassSh_, GetShaderLocation(playerGlassSh_, "lightDir"), &L, SHADER_UNIFORM_VEC3);
+        const float glassAmbient = 0.03f;
+        SetShaderValue(playerGlassSh_, GetShaderLocation(playerGlassSh_, "amb"), &glassAmbient, SHADER_UNIFORM_FLOAT);
     }
     const Vector3 toSun = on ? Vector3Negate(L) : Vector3{-0.45f, 0.8f, 0.35f};
     sceneToSun_ = toSun; sceneTerrainAmb_ = ta;
@@ -1504,6 +1535,18 @@ void Render3D::drawApproachScenery(const ApproachScene& a, ApproachOut& out) {
             M.m8 = Z.x * S; M.m9 = Z.y * S; M.m10 = Z.z * S;
             M.m12 = P.x; M.m13 = P.y; M.m14 = P.z;
             SetShaderValue(lit_, ambientLoc, &a.titleShipAmb, SHADER_UNIFORM_FLOAT);
+            const float chromeMetal = 0.94f, chromeRough = 0.12f, chromeEnv = 0.72f, opaque = 1.f;
+            const float glassMetal = 0.06f, glassRough = 0.07f, glassEnv = 0.95f;
+            SetShaderValue(metal_, metalEye_, &c.position, SHADER_UNIFORM_VEC3);
+            SetShaderValue(metal_, metalness_, &chromeMetal, SHADER_UNIFORM_FLOAT);
+            SetShaderValue(metal_, metalRoughness_, &chromeRough, SHADER_UNIFORM_FLOAT);
+            SetShaderValue(metal_, metalEnvStrength_, &chromeEnv, SHADER_UNIFORM_FLOAT);
+            SetShaderValue(metal_, metalOpacity_, &opaque, SHADER_UNIFORM_FLOAT);
+            SetShaderValue(playerGlassSh_, glassEye_, &c.position, SHADER_UNIFORM_VEC3);
+            SetShaderValue(playerGlassSh_, glassMetalness_, &glassMetal, SHADER_UNIFORM_FLOAT);
+            SetShaderValue(playerGlassSh_, glassRoughness_, &glassRough, SHADER_UNIFORM_FLOAT);
+            SetShaderValue(playerGlassSh_, glassEnvStrength_, &glassEnv, SHADER_UNIFORM_FLOAT);
+            SetShaderValue(playerGlassSh_, glassOpacity_, &opaque, SHADER_UNIFORM_FLOAT);
             player_.transform = M;
             DrawModel(player_, {0, 0, 0}, 1.f, WHITE);
             player_.transform = keep;
@@ -1892,7 +1935,9 @@ void Render3D::drawShip(Vector2 local, float sizePx, bool facingBack, float pitc
                         const EnemyAnim* anim, Color flameTint, float depth, float weaponHeat,
                         const float (*surfaceFx)[4]) {
     if (!ok_) return;
-    if (player) animatePlayer(weaponHeat);
+    // The player GLB carries the authored clips, but animation playback stays
+    // disabled until the rig is validated against the live player pose. This
+    // keeps detached sub-meshes from entering gameplay or destabilizing Level 1.
     if (player) flameTint = {0, 0, 0, 0};  // the player's flame is never tinted
     const int mi = (!player && anim && anim->model > 0 && anim->model < (int)em_.size()) ? anim->model : 0;
     if (!player) {
@@ -1903,23 +1948,29 @@ void Render3D::drawShip(Vector2 local, float sizePx, bool facingBack, float pitc
     }
     // Side view + all enemies keep demo shipScale_. Overhead player only is half that on-screen size.
     float S = shipScale_;
-    if (player) S *= view_.mode == Mode::TopDown ? kTopDownPlayerScaleMul : kSidePlayerScaleMul;
+    if (player) S *= kPlayerModelScale * (view_.mode == Mode::TopDown ? kTopDownPlayerScaleMul : kSidePlayerScaleMul);
     else S *= (view_.mode == Mode::SideScroll ? cfg::kSideEnemyScaleMul : cfg::kTopDownEnemyScaleMul) * em_[mi].scaleMul;   // t251: per-model size
     Vector3 pos = toWorld(local, depth);
     Matrix M = makeShipMatrix(pos, facingBack, pitch, roll, S);
     Model& m = player ? player_ : em_[mi].m;
     m.transform = M;
     if (!inShips_) BeginMode3D(renderCamera());
-    if (!(player && hidePlayer_)) DrawModel(m, {0, 0, 0}, 1.0f, tint);
-    if (player && weaponHeat > 0.01f && !hidePlayer_) {
-        const float h = Clamp(weaponHeat, 0.f, 1.f);
-        const unsigned char green = (unsigned char)std::lround(150.f - 105.f * h);
-        const unsigned char alpha = (unsigned char)std::lround(18.f + 74.f * h);
-        rlDrawRenderBatchActive();
-        BeginBlendMode(BLEND_ADDITIVE);
-        DrawModel(m, {0, 0, 0}, 1.0f, {255, green, 18, alpha});
-        EndBlendMode();
+    if (player) {
+        const float metalness = 0.94f, roughness = 0.12f, envStrength = 0.72f, opacity = 1.f;
+        const Vector3 eye = renderCamera().position;
+        SetShaderValue(metal_, metalEye_, &eye, SHADER_UNIFORM_VEC3);
+        SetShaderValue(metal_, metalness_, &metalness, SHADER_UNIFORM_FLOAT);
+        SetShaderValue(metal_, metalRoughness_, &roughness, SHADER_UNIFORM_FLOAT);
+        SetShaderValue(metal_, metalEnvStrength_, &envStrength, SHADER_UNIFORM_FLOAT);
+        SetShaderValue(metal_, metalOpacity_, &opacity, SHADER_UNIFORM_FLOAT);
+        const float glassMetalness = 0.06f, glassRoughness = 0.07f, glassEnv = 0.95f;
+        SetShaderValue(playerGlassSh_, glassEye_, &eye, SHADER_UNIFORM_VEC3);
+        SetShaderValue(playerGlassSh_, glassMetalness_, &glassMetalness, SHADER_UNIFORM_FLOAT);
+        SetShaderValue(playerGlassSh_, glassRoughness_, &glassRoughness, SHADER_UNIFORM_FLOAT);
+        SetShaderValue(playerGlassSh_, glassEnvStrength_, &glassEnv, SHADER_UNIFORM_FLOAT);
+        SetShaderValue(playerGlassSh_, glassOpacity_, &opacity, SHADER_UNIFORM_FLOAT);
     }
+    if (!(player && hidePlayer_)) DrawModel(m, {0, 0, 0}, 1.0f, tint);
     if (!inShips_) EndMode3D();
 
     auto Xform = [&](Vector3 p) { return Vector3Transform(p, M); };
@@ -1973,7 +2024,7 @@ void Render3D::drawPlayerShield(Vector2 local, float pitch, float roll, float ch
     if (const char* e = alphaLog) { static float acc = 0; acc += dt; if (acc > atof(e)) { acc = 0; fprintf(stderr, "SHIELD alpha charge=%.3f shown=%.3f\n", charge, shieldShown_); } }
     charge = shieldShown_;
     if (!ok_ || !inShips_) return;
-    const float S = shipScale_ * (view_.mode == Mode::TopDown ? kTopDownPlayerScaleMul : kSidePlayerScaleMul);
+    const float S = shipScale_ * kPlayerModelScale * (view_.mode == Mode::TopDown ? kTopDownPlayerScaleMul : kSidePlayerScaleMul);
     const float time = (float)GetTime();
     const float base = view_.mode == Mode::TopDown ? shieldTopRadius_ : shieldBaseRadius_;
     const float radius = base * S * (1.0f + 0.018f * sinf(time * 4.f));
