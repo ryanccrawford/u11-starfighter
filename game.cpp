@@ -399,8 +399,8 @@ void Game::loadSave() {
     int inv = 0;
     if (f) f >> inv;        // optional (t260): Options > UP/DOWN inverted
     g_invertPitch = inv != 0;
-    ownedWeapons = (owned & 7u) | 1u;
-    if (const char* e = getenv("OWN_WEAPONS")) ownedWeapons |= (unsigned)atoi(e) & 7u;   // test hook (not saved unless something saves)
+    ownedWeapons = (owned & 15u) | (1u << kPrimaryLaser) | (1u << kPrimaryRotary);
+    if (const char* e = getenv("OWN_WEAPONS")) ownedWeapons |= (unsigned)atoi(e) & 15u;   // test hook (not saved unless something saves)
     weapons.primary = (prim >= 0 && prim < kPrimaryCount && ((ownedWeapons >> prim) & 1u)) ? prim : kPrimaryLaser;
     if (gfxMode < 0 || gfxMode > 2) gfxMode = 0;
     applyQuality();
@@ -524,8 +524,8 @@ void Game::beginPlaying() {
                 : (L.id == "level_07" && !((ownedWeapons >> kPrimaryPlasma) & 1u)) ? 22.f : 0.f;
         weaponNoteT = 0.f; beamSoundT = 0.f; hudMessageT = 0.f; switchWasHeld = false;
     weapons.flames.clear(); weapons.beamOn = false; weapons.flameOn = false; weapons.plasmaHeat = 0.f; weapons.plasmaLock = 0.f;
-    if (L.id == "level_05" && (ownedWeapons & 7u) != 7u) {   // The Warden: every primary online
-        ownedWeapons |= 7u; writeSave(); weaponNote = "ALL WEAPONS ONLINE"; weaponNoteT = 3.5f;
+    if (L.id == "level_05" && (ownedWeapons & 15u) != 15u) {   // The Warden: every primary online
+        ownedWeapons |= 15u; writeSave(); weaponNote = "ALL WEAPONS ONLINE"; weaponNoteT = 3.5f;
         fprintf(stderr, "WEAPON all online (Warden)\n");
     }
     if (const char* e = getenv("WEAPON")) selectWeapon(atoi(e), false);
@@ -898,6 +898,7 @@ void Game::updateCombatInput() {
         if (IsKeyPressed(KEY_ONE)) selectWeapon(kPrimaryLaser, true);
         if (IsKeyPressed(KEY_TWO)) selectWeapon(kPrimaryFlame, true);
         if (IsKeyPressed(KEY_THREE)) selectWeapon(kPrimaryPlasma, true);
+        if (IsKeyPressed(KEY_FOUR)) selectWeapon(kPrimaryRotary, true);
         // t260: X flips UP/DOWN (only where up/down is pitch: the trench run); saved like the Options toggle
         bool flipX = IsKeyPressed(KEY_X);
         if (const char* e = getenv("INVERT_TEST_AT")) {   // hidden test runs: virtual X presses at these level times
@@ -990,9 +991,9 @@ void Game::updatePlayer(float dt) {
         }
         static const float autoWeapon = getenv("AUTOWEAPON") ? (float)atof(getenv("AUTOWEAPON")) : 0.f;   // capture hook: cycle owned primaries
         if (autoWeapon > 0.f) { static float acc = 0.f; acc += dt; if (acc >= autoWeapon) { acc = 0.f; cycleWeapon(1); } }
-        const auto cannonMuzzles = r3d.playerCannonMuzzlesLocal(view, cameraTurn, player.pos, pPitch, pRoll, player.hiddenAxis);
+        const auto muzzles = r3d.playerMuzzlesLocal(view, cameraTurn, player.pos, pPitch, pRoll, player.hiddenAxis);
         weapons.update(dt, player.pos, enemies.list, view, fx, audio, primary && !holdFire && !appr.cam3d && !appr.padLock && !moonIntro, secondary, -aim,
-                       turretTarget.active ? &turretTarget : nullptr, cannonMuzzles);
+                       turretTarget.active ? &turretTarget : nullptr, muzzles.cannons, muzzles.rotary);
         {   // plasma lance overheat / recovered cues (same designer sounds as the laser heat)
             static bool lockWas = false;
             // (t235: the lockout alarm / vent / cooling hiss are the lance's own now: Audio::plasmaLance)
@@ -2379,8 +2380,9 @@ void Game::drawWorld() const {
         const float pl = kLaserLength * kBoltQuadScale * view.s;
         weapons.lasers.each([&](const Laser& l) {
             const Vector2 p = view.toScreen(l.pos), dd = Vector2Normalize(view.dirToScreen(l.vel));
-            const Vector2 c = Vector2Subtract(p, Vector2Scale(dd, pl * 0.45f));
-            DrawTexturePro(gl, gr, {c.x, c.y, pl * 1.1f, pl * 0.45f}, {pl * 0.55f, pl * 0.225f}, atan2f(dd.y, dd.x) * RAD2DEG, Fade({0, 10, 30, 255}, 0.6f));
+            const float len = pl * l.visualScale;
+            const Vector2 c = Vector2Subtract(p, Vector2Scale(dd, len * 0.45f));
+            DrawTexturePro(gl, gr, {c.x, c.y, len * 1.1f, len * 0.45f}, {len * 0.55f, len * 0.225f}, atan2f(dd.y, dd.x) * RAD2DEG, Fade({0, 10, 30, 255}, 0.6f));
         });
     }
     // additive batch: flames (sprites only in 2D), glows, weapons, particles, pickups glow
@@ -2455,7 +2457,7 @@ void Game::drawWorld() const {
         }
         if (playerVisible) {
             r3d.drawShip(player.pos, player.def->size * s, false, pPitch, pRoll, WHITE, true, pPower,
-                     nullptr, 0, nullptr, {0, 0, 0, 0}, player.hiddenAxis, weapons.heat);
+                     nullptr, 0, nullptr, {0, 0, 0, 0}, player.hiddenAxis, weapons.heat, nullptr, weapons.rotarySpin);
         }
         enemies.list.each([&](const Enemy& e) {
             float ep = 0, er = 0;
@@ -2678,7 +2680,7 @@ void Game::drawTouchControls() const {
         drawWeaponIcon({sc.x, sc.y - sr * 0.12f}, sr * 0.75f, weapons.primary, on ? 0.8f : 0.3f);
         for (int i = 0; i < kPrimaryCount; i++) {   // owned dots, the selected one bright
             const bool own = (ownedWeapons >> i) & 1u;
-            DrawCircleV({sc.x + (i - 1) * 9 * s, sc.y + sr * 0.55f}, 2.6f * s, !own ? Fade(GRAY, 0.18f) : i == weapons.primary ? Fade(WHITE, 0.85f) : Fade(SKYBLUE, 0.45f));
+            DrawCircleV({sc.x + (i - (kPrimaryCount - 1) * 0.5f) * 9 * s, sc.y + sr * 0.55f}, 2.6f * s, !own ? Fade(GRAY, 0.18f) : i == weapons.primary ? Fade(WHITE, 0.85f) : Fade(SKYBLUE, 0.45f));
         }
         if (on) { const int f3 = (int)(11 * s); DrawText("SWAP", (int)(sc.x - MeasureText("SWAP", f3) / 2), (int)(sc.y - sr - 13 * s), f3, Fade(RAYWHITE, 0.45f)); }
     }
@@ -3511,7 +3513,15 @@ Vector2 Game::switchButtonPos() const {
 }
 
 void Game::drawWeaponIcon(Vector2 c, float r, int w, float a) const {
-    if (w == kPrimaryFlame) {
+    if (w == kPrimaryRotary) {
+        DrawCircleLinesV({c.x - r * 0.1f, c.y}, r * 0.35f, Fade(SKYBLUE, a));
+        for (int i = 0; i < 6; ++i) {
+            const float angle = i * PI / 3.f;
+            DrawCircleV({c.x - r * 0.1f + cosf(angle) * r * 0.25f,
+                         c.y + sinf(angle) * r * 0.25f}, r * 0.075f, Fade(RAYWHITE, a));
+        }
+        DrawLineEx({c.x + r * 0.30f, c.y}, {c.x + r * 0.58f, c.y}, r * 0.10f, Fade(SKYBLUE, a));
+    } else if (w == kPrimaryFlame) {
         DrawCircleV({c.x - r * 0.10f, c.y + r * 0.10f}, r * 0.34f, Fade({255, 90, 20, 255}, a));
         DrawTriangle({c.x - r * 0.42f, c.y + r * 0.02f}, {c.x + r * 0.05f, c.y - r * 0.62f}, {c.x + r * 0.22f, c.y + r * 0.10f}, Fade({255, 120, 30, 255}, a));
         DrawCircleV({c.x - r * 0.06f, c.y + r * 0.16f}, r * 0.20f, Fade({255, 210, 90, 255}, a));

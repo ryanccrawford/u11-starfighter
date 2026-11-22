@@ -178,7 +178,7 @@ private:
     Vector2 bossDeathPos{};
     bool bossSpawned = false, showFps = true, autoFire = true, secondaryWasHeld = false, freePlay = false, quit = false, tapConsumed = false;
     bool pickupTestSpawned = false;
-    // ---- t219: selectable primaries. ownedWeapons bit i = PrimaryWeapon i (laser always). Saved; never lost.
+    // ---- t219: selectable primaries. ownedWeapons bit i = PrimaryWeapon i (laser and rotary always). Saved; never lost.
     unsigned ownedWeapons = 1u;
     float weaponGiftT = 0.f;          // level time of the next guaranteed weapon-unlock pickup (L4 / Liftoff)
     float weaponNoteT = 0.f; std::string weaponNote;   // short HUD caption ("FLAMER ONLINE", "PLASMA" ...)

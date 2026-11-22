@@ -50,16 +50,21 @@ public:
     void drawShip(Vector2 local, float sizePx, bool facingBack, float pitch, float roll,
                   Color tint, bool player, float flamePower, const float (*dent)[4] = nullptr, int nDent = 0,
                   const struct EnemyAnim* anim = nullptr, Color flameTint = {0, 0, 0, 0},  // flameTint alpha 0 = default flame
-                  float depth = 0.f, float weaponHeat = 0.f, const float (*surfaceFx)[4] = nullptr);  // hidden-axis depth and per-hull damage look
+                  float depth = 0.f, float weaponHeat = 0.f, const float (*surfaceFx)[4] = nullptr,
+                  float rotarySpin = 0.f);  // hidden-axis depth and per-hull damage look
     // Per-enemy-type GLB models (assets/models/<file>). 0 = the default/global enemy model
     // (ENEMY_MODEL or blue_racer_lod4k.glb). Loads + caches; returns 0 if the file fails.
     int enemyModel(const std::string& file);
     // Where the model's weapon muzzle (sidecar JSON "muzzle") sits in playfield-local coords.
     Vector2 muzzleLocal(int model, Vector2 shipLocal, float depth = 0.f) const;
     // Project the four player cannon barrel tips through the current gameplay camera.
-    std::array<Vector2, 4> playerCannonMuzzlesLocal(const View& view, float cameraTurn,
-                                                    Vector2 shipLocal, float pitch, float roll,
-                                                    float depth = 0.f) const;
+    struct PlayerMuzzles {
+        std::array<Vector2, 4> cannons{};
+        std::array<Vector2, 2> rotary{};
+    };
+    PlayerMuzzles playerMuzzlesLocal(const View& view, float cameraTurn,
+                                    Vector2 shipLocal, float pitch, float roll,
+                                    float depth = 0.f) const;
     // A real model-space shield shell.  It is rendered in the same 3D pass as the player,
     // rather than as a camera-facing sprite, so the ship remains inside the sphere in both views.
     void drawPlayerShield(Vector2 local, float pitch, float roll, float charge, float depth = 0.f);
@@ -192,7 +197,8 @@ private:
     ModelAnimation* playerAnims_ = nullptr;
     int playerAnimCount_ = 0;
     std::vector<int> playerGearAnims_, playerGunAnims_, playerExhaustAnims_;
-    float playerAnimClock_ = 0.f;
+    std::vector<int> playerGunMeshes_;
+    float playerGunFrame_ = 0.f;
     Model shield_{};
     static constexpr int kPickupTypes = 5;
     Model pickup_[kPickupTypes]{};
@@ -237,7 +243,7 @@ private:
     // the legacy normalized player mesh.
     static constexpr float kPlayerModelScale = 0.15f;
     std::vector<Plume> plumes_;
-    void animatePlayer(float weaponHeat);
+    void animatePlayerRotary(float spin);
     // t250: exterior lights mounted on the hulls (nav / strobe / engine / cockpit). Emissive
     // billboards only: they never light the hull (Ryan: sun-only ship lighting, no fill / rim).
     struct LightSprite { Vector3 p; float size; Color c; };

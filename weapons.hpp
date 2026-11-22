@@ -17,7 +17,7 @@ struct BoltSpark { bool alive = false; Vector2 pos{}, vel{}; float life = 1, dur
 struct FlameBit { bool alive = false; Vector2 pos{}, vel{}; float age = 0, life = 0.45f, size = 10, spin = 0; int rayIndex = 0; };
 
 // Primary weapons the player can own and cycle through (bit i of the owned mask = weapon i).
-enum PrimaryWeapon { kPrimaryLaser = 0, kPrimaryFlame = 1, kPrimaryPlasma = 2, kPrimaryCount = 3 };
+enum PrimaryWeapon { kPrimaryLaser = 0, kPrimaryFlame = 1, kPrimaryPlasma = 2, kPrimaryRotary = 3, kPrimaryCount = 4 };
 const char* primaryName(int w);
 
 // Player weapons in local space: requested primary volleys + player-triggered homing missiles.
@@ -27,7 +27,8 @@ public:
     void update(float dt, Vector2 ship, Pool<Enemy, 160>& enemies, const View& v, Particles& fx, Audio& sfx,
                 bool primaryFire, bool secondaryFire, float aim,
                 const ProjectileTarget* extraTarget,
-                const std::array<Vector2, 4>& cannonMuzzles); // aim: local angle (rad) of the nose
+                const std::array<Vector2, 4>& cannonMuzzles,
+                const std::array<Vector2, 2>& rotaryMuzzles); // aim: local angle (rad) of the nose
     void draw(const View& v, const Texture2D& glow) const;  // call inside BLEND_ADDITIVE
     void drawFlameSmoke(const View& v, const Texture2D& glow) const; // call before the additive weapon pass
     void drawBeamImpact(const View& v, const Texture2D& glow) const; // call after hulls are composited
@@ -39,6 +40,7 @@ public:
     float rapid = 0;  // seconds of rapid-fire left
     float heat = 0;   // 0..1 primary weapon heat
     float overheat = 0; // cooldown lockout seconds
+    float rotarySpin = 0; // 0..1 barrel spin, including spin-down after release
     bool flameBeam = false; // flamethrower roar on (set by update while the flamer fires)
 
     // ---- selectable primaries (t219). `primary` survives reset(): ownership is a save-game property.
@@ -63,6 +65,7 @@ public:
     static constexpr float kFlameTickRate = 16.f, kFlameHalfAngle = 0.30f, kFlameRangeK = 0.36f;   // 1 dmg per tick per target
 
 private:
-    float fireT_ = 0, missileT_ = 0, sparkDebt_ = 0, flameDebt_ = 0, plasmaCycleT_ = 0;
+    float fireT_ = 0, rotaryT_ = 0, missileT_ = 0, sparkDebt_ = 0, flameDebt_ = 0, plasmaCycleT_ = 0;
     unsigned laserVolley_ = 0;
+    unsigned rotarySide_ = 0;
 };

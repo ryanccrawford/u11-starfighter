@@ -73,6 +73,7 @@ public:
 struct Laser : Projectile {
     int damage = 1;
     Color col = WHITE;
+    float visualScale = 1.f;
     std::uint64_t flightSound = 0;
 };
 struct Missile : Projectile {
