@@ -1892,7 +1892,9 @@ void Render3D::drawShip(Vector2 local, float sizePx, bool facingBack, float pitc
                         const EnemyAnim* anim, Color flameTint, float depth, float weaponHeat,
                         const float (*surfaceFx)[4]) {
     if (!ok_) return;
-    if (player) animatePlayer(weaponHeat);
+    // The player GLB carries the authored clips, but animation playback stays
+    // disabled until the rig is validated against the live player pose. This
+    // keeps detached sub-meshes from entering gameplay or destabilizing Level 1.
     if (player) flameTint = {0, 0, 0, 0};  // the player's flame is never tinted
     const int mi = (!player && anim && anim->model > 0 && anim->model < (int)em_.size()) ? anim->model : 0;
     if (!player) {
