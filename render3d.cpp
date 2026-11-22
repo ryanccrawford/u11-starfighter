@@ -790,13 +790,13 @@ void Render3D::init(const char* root) {
         shieldBaseRadius_ = 0.f;
         shieldBaseRadius_ = fmaxf(fabsf(b.max.x - c.x), fmaxf(fabsf(b.max.y - c.y), fabsf(b.max.z - c.z)));
         shieldBaseRadius_ *= 1.03f;  // just-clearance margin; the field should hug the fighter
-        // Overhead: the camera sees the hull's width (x) instead of its height (y), and the ship is drawn
-        // smaller (kTopDownPlayerScaleMul vs kSidePlayerScaleMul). Keep the side view's gap above/below the
+        // Overhead: the camera sees the hull's width (x) instead of its height (y), and the shield is drawn
+        // smaller (kTopDownShieldScaleMul vs kSidePlayerScaleMul). Keep the side view's gap above/below the
         // hull (radius - half height), converted to the same on-screen size, beside the hull from above.
         const float halfW = fabsf(b.max.x - c.x);
         const float halfH = fabsf(b.max.y - c.y);
         const float sideGap = shieldBaseRadius_ - halfH;
-        shieldTopRadius_ = fmaxf(shieldBaseRadius_, halfW + sideGap * (kSidePlayerScaleMul / kTopDownPlayerScaleMul) * kShieldTopGapMatch);
+        shieldTopRadius_ = fmaxf(shieldBaseRadius_, halfW + sideGap * (kSidePlayerScaleMul / kTopDownShieldScaleMul) * kShieldTopGapMatch);
         fprintf(stderr, "SHIELD side r=%.3f top r=%.3f (half w=%.3f h=%.3f gap=%.3f)\n", shieldBaseRadius_, shieldTopRadius_, halfW, halfH, sideGap);
     }
     // enemies: the default model (index 0) is a decimated LOD (blue_racer.glb = 40k tris original,
@@ -1285,7 +1285,7 @@ Matrix Render3D::makeShipMatrix(Vector3 pos, bool facingBack, float pitch, float
             // hence the minus) comes from the pitch slot and is non-zero only on diagonal forward moves.
             R = MatrixMultiply(MatrixRotateX(rl + profile_), MatrixRotateY(-Clamp(pitch, -0.17f, 0.17f)));
             if (climbPitch_ != 0.f) R = MatrixMultiply(MatrixRotateZ(-climbPitch_), R);   // Liftoff pull-up: nose (-X) toward +Y
-            R = MatrixMultiply(R, MatrixRotateY(PI));                          // nose -X -> screen right (+X)
+            R = MatrixMultiply(R, MatrixRotateY(-PI / 2.f));  // nose -X -> world -Z, screen up
         } else {  // side: unchanged demo basis (looked right to Ryan)
             R = MatrixRotateY(PI);
             R = MatrixMultiply(R, MatrixRotateX(rl));
@@ -2024,7 +2024,7 @@ void Render3D::drawPlayerShield(Vector2 local, float pitch, float roll, float ch
     if (const char* e = alphaLog) { static float acc = 0; acc += dt; if (acc > atof(e)) { acc = 0; fprintf(stderr, "SHIELD alpha charge=%.3f shown=%.3f\n", charge, shieldShown_); } }
     charge = shieldShown_;
     if (!ok_ || !inShips_) return;
-    const float S = shipScale_ * kPlayerModelScale * (view_.mode == Mode::TopDown ? kTopDownPlayerScaleMul : kSidePlayerScaleMul);
+    const float S = shipScale_ * kPlayerModelScale * (view_.mode == Mode::TopDown ? kTopDownShieldScaleMul : kSidePlayerScaleMul);
     const float time = (float)GetTime();
     const float base = view_.mode == Mode::TopDown ? shieldTopRadius_ : shieldBaseRadius_;
     const float radius = base * S * (1.0f + 0.018f * sinf(time * 4.f));
