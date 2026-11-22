@@ -1229,7 +1229,9 @@ Vector2 Render3D::muzzleLocal(int model, Vector2 shipLocal, float depth) const {
 }
 
 Vector3 Render3D::nozzleModel(int i) const {
-    static const Vector3 n[2] = {{0.735f, -0.13f, -0.07f}, {0.735f, -0.13f, 0.07f}};
+    // Replacement starfighter engine outlets, in the player model basis:
+    // nose -X, aft +X, wings Z, up +Y.
+    static const Vector3 n[2] = {{4.27f, 0.22f, -0.98f}, {4.27f, 0.22f, 0.98f}};
     return n[i & 1];
 }
 
