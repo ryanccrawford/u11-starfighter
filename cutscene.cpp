@@ -2,6 +2,7 @@
 #include "entities.hpp"
 #include "ui_theme.hpp"
 #include "raymath.h"
+#include "rlgl.h"
 #include <nlohmann/json.hpp>
 #include <cmath>
 #include <cstdio>
@@ -9,7 +10,12 @@
 
 using nlohmann::json;
 
+Cutscene::~Cutscene() {
+    if (heroModelLoaded_) UnloadModel(heroModel_);
+}
+
 bool Cutscene::load(const std::string& id, Assets& assets) {
+    if (heroModelLoaded_) { UnloadModel(heroModel_); heroModel_ = {}; heroModelLoaded_ = false; }
     assets_ = &assets;
     steps_.clear(); actors_.clear(); idx_ = 0; t_ = 0; done_ = true;
     bgImage_ = nullptr; title_.clear(); fade_ = 1; fadeFrom_ = 1; fadeTo_ = 0;
@@ -45,7 +51,11 @@ void Cutscene::begin() {
     else if (st.type == "actor") {
         Actor a; a.id = st.actor; a.a = st.a; a.b = st.b; a.dur = st.duration; a.size = st.amount > 0 ? st.amount : 1;
         a.flip = st.b.x < st.a.x;
-        if (!st.sprite.empty()) a.sheet = &assets_->sheet(st.sprite, "side_scroller");
+        if (a.id == "hero") {
+            heroModel_ = LoadModel(assets_->path("models/player_starfighter.glb").c_str());
+            heroModelLoaded_ = heroModel_.meshCount > 0;
+            if (!heroModelLoaded_) fprintf(stderr, "CUTSCENE missing 3D hero model\n");
+        } else if (!st.sprite.empty()) a.sheet = &assets_->sheet(st.sprite, "side_scroller");
         for (auto& x : actors_) if (x.id == a.id) { x = a; return; }
         actors_.push_back(a);
     }
@@ -96,7 +106,19 @@ void Cutscene::draw(float W, float H, float s, const Texture2D& glow) const {
         k = k * k * (3 - 2 * k);  // smoothstep
         Vector2 p{(a.a.x + (a.b.x - a.a.x) * k) * W + off.x, (a.a.y + (a.b.y - a.a.y) * k) * H + off.y};
         float sz = 160 * s * a.size;
-        if (a.sheet) {
+        if (a.id == "hero" && heroModelLoaded_) {
+            Camera3D camera{};
+            camera.position = {0, 0, 20}; camera.target = {0, 0, 0}; camera.up = {0, 1, 0};
+            camera.fovy = 8.f; camera.projection = CAMERA_ORTHOGRAPHIC;
+            const float aspect = H > 0 ? W / H : 1.f;
+            const float worldH = 8.f;
+            const Vector3 pos{(p.x / W - 0.5f) * worldH * aspect, (0.5f - p.y / H) * worldH, 0};
+            heroModel_.transform = MatrixMultiply(MatrixMultiply(MatrixRotateY(PI), MatrixScale(0.15f * a.size, 0.15f * a.size, 0.15f * a.size)), MatrixTranslate(pos.x, pos.y, 0));
+            rlDrawRenderBatchActive();
+            BeginMode3D(camera);
+            DrawModel(heroModel_, {0, 0, 0}, 1.f, WHITE);
+            EndMode3D();
+        } else if (a.sheet) {
             int col = (int)(GetTime() * 20) % a.sheet->cols;
             DrawTexturePro(a.sheet->tex, a.sheet->frame(0, col, a.flip), {p.x, p.y, sz, sz}, {sz / 2, sz / 2}, 0, WHITE);
         } else DrawCircleV(p, sz * 0.2f, SKYBLUE);

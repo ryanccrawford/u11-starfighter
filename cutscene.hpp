@@ -1,6 +1,7 @@
 #pragma once
 #include "assets.hpp"
 #include "audio.hpp"
+#include "raylib.h"
 #include <string>
 #include <vector>
 
@@ -9,6 +10,7 @@
 // Tap advances dialog (first tap completes the typewriter); SKIP button ends it.
 class Cutscene {
 public:
+    ~Cutscene();
     bool load(const std::string& id, Assets& assets);
     void update(float dt, Audio& audio);
     void draw(float W, float H, float s, const Texture2D& glow) const;
@@ -33,4 +35,6 @@ private:
     std::string title_;
     bool done_ = true;
     Assets* assets_ = nullptr;
+    mutable Model heroModel_{};
+    bool heroModelLoaded_ = false;
 };
