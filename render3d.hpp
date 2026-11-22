@@ -196,12 +196,13 @@ private:
     int pickupAnimFrame_[kPickupTypes] = {-1, -1, -1, -1, -1};
     BoundingBox pickupBounds_[kPickupTypes]{};
     Texture2D flameTex_{};
-    Shader lit_{}, titleGlyphSh_{}, metal_{}, flameSh_{}, heatSh_{}, shieldSh_{};
+    Shader lit_{}, titleGlyphSh_{}, metal_{}, playerGlassSh_{}, flameSh_{}, heatSh_{}, shieldSh_{};
     Shader pickupSh_{};
     RenderTexture2D scene_{};
     int fTime_ = -1, fRecolor_ = -1, hTime_ = -1, hScreen_ = -1, shipTris_ = 0, rtW_ = 0, rtH_ = 0;
     int shieldTime_ = -1, shieldCharge_ = -1, shieldEye_ = -1, shieldHitsLoc_ = -1;
     int metalEye_ = -1, metalRoughness_ = -1, metalness_ = -1, metalEnvStrength_ = -1, metalOpacity_ = -1;
+    int glassEye_ = -1, glassRoughness_ = -1, glassMetalness_ = -1, glassEnvStrength_ = -1, glassOpacity_ = -1;
     BulkheadPillarVisual bulkheadPillarVisual_{};
     bool direct_ = true, hidePlayer_ = false;
     float profile_ = 0;
