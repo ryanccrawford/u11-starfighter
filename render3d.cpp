@@ -1250,6 +1250,26 @@ Vector2 Render3D::muzzleLocal(int model, Vector2 shipLocal, float depth) const {
     return view_.toLocal(GetWorldToScreen(Vector3Transform(em(model).muzzle, M), cam_));
 }
 
+std::array<Vector2, 4> Render3D::playerCannonMuzzlesLocal(const View& view, float cameraTurn,
+                                                           Vector2 shipLocal, float pitch, float roll,
+                                                           float depth) const {
+    // Barrel fronts in player_starfighter.glb: nose pair, then outer-wing pair.
+    // Model basis: nose -X, up +Y, port +Z.
+    static const std::array<Vector3, 4> tips{{
+        {-5.73f, -0.20f,  0.66f}, {-5.73f, -0.20f, -0.66f},
+        {-1.03f, -0.10f,  4.26f}, {-1.03f, -0.10f, -4.26f}
+    }};
+    const Camera3D camera = CameraSystem::makeCamera(view, Clamp(cameraTurn, -1.f, 1.f));
+    const Vector3 pos = CameraSystem::toWorld(view, camera, shipLocal, depth);
+    const float S = shipScale_ * kPlayerModelScale *
+                    (view.mode == Mode::TopDown ? kTopDownPlayerScaleMul : kSidePlayerScaleMul);
+    const Matrix M = makeShipMatrix(pos, false, pitch, roll, S, view);
+    std::array<Vector2, 4> result{};
+    for (size_t i = 0; i < tips.size(); ++i)
+        result[i] = view.toLocal(GetWorldToScreen(Vector3Transform(tips[i], M), camera));
+    return result;
+}
+
 Vector3 Render3D::nozzleModel(int i) const {
     // Replacement starfighter engine outlets, in the player model basis:
     // nose -X, aft +X, wings Z, up +Y.
@@ -1274,13 +1294,18 @@ Vector3 Render3D::toWorld(Vector2 local, float depth) const {
 }
 
 Matrix Render3D::makeShipMatrix(Vector3 pos, bool facingBack, float pitch, float roll, float scale) const {
+    return makeShipMatrix(pos, facingBack, pitch, roll, scale, view_);
+}
+
+Matrix Render3D::makeShipMatrix(Vector3 pos, bool facingBack, float pitch, float roll, float scale,
+                                 const View& poseView) const {
     const float S = scale;
     // raylib MatrixMultiply(A,B) applies A first. Attitude (roll about the nose axis, pitch about the
     // wing axis) is applied in MODEL space, then the view basis, then scale, then translation.
     Matrix R;
     if (!facingBack) {  // player: red_fighter, nose -X, wings Z, up +Y
         const float rl = Clamp(roll, -0.55f, 0.55f), pt = Clamp(pitch, -0.35f, 0.35f);
-        if (view_.mode == Mode::TopDown) {
+        if (poseView.mode == Mode::TopDown) {
             // Roll about the model nose-tail axis (X) only; nose yaw (model Y, + = nose screen-right,
             // hence the minus) comes from the pitch slot and is non-zero only on diagonal forward moves.
             R = MatrixMultiply(MatrixRotateX(rl + profile_), MatrixRotateY(-Clamp(pitch, -0.17f, 0.17f)));
@@ -1293,8 +1318,8 @@ Matrix Render3D::makeShipMatrix(Vector3 pos, bool facingBack, float pitch, float
         }
     } else {  // enemy: blue_racer, nose +Z, wings X, up +Y
         const float rl = Clamp(roll, -0.4f, 0.4f), pt = Clamp(pitch, -0.3f, 0.3f);
-        R = MatrixMultiply(MatrixRotateZ(rl + (view_.mode == Mode::TopDown ? profile_ : 0.f)), MatrixRotateX(-pt));  // model-space bank / pitch
-        if (view_.mode == Mode::TopDown) {
+        R = MatrixMultiply(MatrixRotateZ(rl + (poseView.mode == Mode::TopDown ? profile_ : 0.f)), MatrixRotateX(-pt));  // model-space bank / pitch
+        if (poseView.mode == Mode::TopDown) {
             // overhead: seen from above, nose +Z = screen down (toward player). No basis turn.
         } else {
             R = MatrixMultiply(R, MatrixRotateY(-PI / 2.f));  // nose +Z -> -X (face left), profile view
@@ -1302,7 +1327,7 @@ Matrix Render3D::makeShipMatrix(Vector3 pos, bool facingBack, float pitch, float
     }
     // Level 6 approach: the playfield image is turned view_.rot clockwise on screen; turn the hull
     // with it about the overhead camera's view axis (world Y) so its nose keeps pointing forward.
-    if (view_.mode == Mode::TopDown && view_.rot != 0.f) R = MatrixMultiply(R, MatrixRotateY(-view_.rot));
+    if (poseView.mode == Mode::TopDown && poseView.rot != 0.f) R = MatrixMultiply(R, MatrixRotateY(-poseView.rot));
     return MatrixMultiply(MatrixMultiply(R, MatrixScale(S, S, S)), MatrixTranslate(pos.x, pos.y, pos.z));
 }
 

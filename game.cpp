@@ -990,8 +990,9 @@ void Game::updatePlayer(float dt) {
         }
         static const float autoWeapon = getenv("AUTOWEAPON") ? (float)atof(getenv("AUTOWEAPON")) : 0.f;   // capture hook: cycle owned primaries
         if (autoWeapon > 0.f) { static float acc = 0.f; acc += dt; if (acc >= autoWeapon) { acc = 0.f; cycleWeapon(1); } }
+        const auto cannonMuzzles = r3d.playerCannonMuzzlesLocal(view, cameraTurn, player.pos, pPitch, pRoll, player.hiddenAxis);
         weapons.update(dt, player.pos, enemies.list, view, fx, audio, primary && !holdFire && !appr.cam3d && !appr.padLock && !moonIntro, secondary, -aim,
-                       turretTarget.active ? &turretTarget : nullptr);
+                       turretTarget.active ? &turretTarget : nullptr, cannonMuzzles);
         {   // plasma lance overheat / recovered cues (same designer sounds as the laser heat)
             static bool lockWas = false;
             // (t235: the lockout alarm / vent / cooling hiss are the lance's own now: Audio::plasmaLance)

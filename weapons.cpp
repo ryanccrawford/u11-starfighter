@@ -66,10 +66,12 @@ void Weapons::reset() {
     plasmaHeat = 0; plasmaLock = 0; beamOn = false; beamLen = 0; beamAcc = 0; beamHit = false; beamHitPos = {}; beamDepthScale = 1.f;
     flameOn = false; flameTick = 0; flameDebt_ = 0; flameStops.fill(0.f); plasmaCycleT_ = 0.f;
     level = 1; ammo = kMissileStartAmmo; rapid = 0; heat = 0; overheat = 0; flameBeam = false; fireT_ = 0; missileT_ = 0.5f;
+    laserVolley_ = 0;
 }
 
 void Weapons::update(float dt, Vector2 ship, Pool<Enemy, 160>& enemies, const View& v, Particles& fx, Audio& sfx,
-                     bool primaryFire, bool secondaryFire, float aim, const ProjectileTarget* extraTarget) {
+                     bool primaryFire, bool secondaryFire, float aim, const ProjectileTarget* extraTarget,
+                     const std::array<Vector2, 4>& cannonMuzzles) {
     const float s = v.s;
     rapid = std::fmax(0.f, rapid - dt);
     overheat = std::fmax(0.f, overheat - dt);
@@ -137,21 +139,24 @@ void Weapons::update(float dt, Vector2 ship, Pool<Enemy, 160>& enemies, const Vi
     fireT_ -= dt;
     if (primary == kPrimaryLaser && primaryFire && fireT_ <= 0 && overheat <= 0 && (rapid > 0 || heat < 1.f)) {
         fireT_ = cfg::dev.weaponCooldown * (rapid > 0 ? kRapidMultiplier : 1.f);
-        struct Shot { float lat, angle; };
-        static const Shot single[] = {{0, 0}};
-        static const Shot dbl[] = {{-9, 0}, {9, 0}};
-        static const Shot spread[] = {{-9, 0}, {9, 0}, {0, -0.18f}, {0, 0.18f}, {0, 0}};
+        struct Shot { float angle; };
+        static const Shot single[] = {{0}};
+        static const Shot dbl[] = {{0}, {0}};
+        static const Shot spread[] = {{0}, {0}, {-0.18f}, {0.18f}, {0}};
         const Shot* set = level >= 3 ? spread : level == 2 ? dbl : single;
         int n = level >= 3 ? 5 : level == 2 ? 2 : 1;
+        const unsigned volley = laserVolley_++;
         if (rapid <= 0) {
             heat = std::fmin(1.f, heat + 0.052f + 0.009f * (float)n);
             if (heat >= 1.f) overheat = 1.15f;
         }
         for (int i = 0; i < n; i++)
             if (Laser* l = lasers.spawn()) {
-                // muzzle offsets + spread angles are defined for a level nose, then rotated by the nose pitch
-                const float ca = std::cos(aim), sa = std::sin(aim), mx = 40 * s, my = set[i].lat * s;
-                l->pos = {ship.x + mx * ca - my * sa, ship.y + mx * sa + my * ca};
+                // Single shots cycle all four barrels. Double volleys alternate the nose
+                // and wing pairs. Spread fires all four plus one cycling centre shot.
+                const unsigned barrel = n == 1 ? volley % 4 : n == 2 ? (volley % 2) * 2 + i
+                                                : i < 4 ? i : volley % 4;
+                l->pos = cannonMuzzles[barrel];
                 l->previousPos = l->pos; l->faction = Faction::Player;
                 l->vel = {std::cos(set[i].angle + aim) * kLaserSpeed * s, std::sin(set[i].angle + aim) * kLaserSpeed * s};
                 l->damage = cfg::dev.laserDamage;
