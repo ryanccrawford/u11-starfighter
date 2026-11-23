@@ -1289,7 +1289,9 @@ Matrix Render3D::makeShipMatrix(Vector3 pos, bool facingBack, float pitch, float
         } else {  // side: unchanged demo basis (looked right to Ryan)
             R = MatrixRotateY(PI);
             R = MatrixMultiply(R, MatrixRotateX(rl));
-            R = MatrixMultiply(R, MatrixRotateZ(pt));
+            // The model's nose starts along -X. After the Y half-turn, a positive
+            // gameplay pitch must rotate that nose upward on screen.
+            R = MatrixMultiply(R, MatrixRotateZ(-pt));
         }
     } else {  // enemy: blue_racer, nose +Z, wings X, up +Y
         const float rl = Clamp(roll, -0.4f, 0.4f), pt = Clamp(pitch, -0.3f, 0.3f);
