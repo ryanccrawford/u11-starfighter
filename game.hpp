@@ -16,7 +16,7 @@
 #include <memory>
 #include <string>
 
-enum class PickupType { Weapon, Missiles, Shield, Repair, Rapid, Flamer, Plasma };   // Flamer / Plasma: primary weapon unlocks (t219)
+enum class PickupType { Weapon, Missiles, Shield, Repair, Rapid, Flamer, Plasma, Rotary };   // primary weapon unlocks (t219)
 enum class PickupState { Active, CollectedDisperse, MissedFlash };
 struct Pickup {
     bool alive = false;
@@ -178,9 +178,9 @@ private:
     Vector2 bossDeathPos{};
     bool bossSpawned = false, showFps = true, autoFire = true, secondaryWasHeld = false, freePlay = false, quit = false, tapConsumed = false;
     bool pickupTestSpawned = false;
-    // ---- t219: selectable primaries. ownedWeapons bit i = PrimaryWeapon i (laser and rotary always). Saved; never lost.
+    // ---- t219: selectable primaries. ownedWeapons bit i = PrimaryWeapon i (laser always). Saved; never lost.
     unsigned ownedWeapons = 1u;
-    float weaponGiftT = 0.f;          // level time of the next guaranteed weapon-unlock pickup (L4 / Liftoff)
+    float weaponGiftT = 0.f;          // level time of the next guaranteed weapon-unlock pickup
     float weaponNoteT = 0.f; std::string weaponNote;   // short HUD caption ("FLAMER ONLINE", "PLASMA" ...)
     bool switchWasHeld = false;
     float beamSoundT = 0.f;
