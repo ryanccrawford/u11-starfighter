@@ -25,8 +25,9 @@ class Weapons {
 public:
     void reset();
     void update(float dt, Vector2 ship, Pool<Enemy, 160>& enemies, const View& v, Particles& fx, Audio& sfx,
-                bool primaryFire, bool secondaryFire, float aim = 0,
-                const ProjectileTarget* extraTarget = nullptr); // aim: local angle (rad) of the nose
+                bool primaryFire, bool secondaryFire, float aim,
+                const ProjectileTarget* extraTarget,
+                const std::array<Vector2, 4>& cannonMuzzles); // aim: local angle (rad) of the nose
     void draw(const View& v, const Texture2D& glow) const;  // call inside BLEND_ADDITIVE
     void drawFlameSmoke(const View& v, const Texture2D& glow) const; // call before the additive weapon pass
     void drawBeamImpact(const View& v, const Texture2D& glow) const; // call after hulls are composited
@@ -63,4 +64,5 @@ public:
 
 private:
     float fireT_ = 0, missileT_ = 0, sparkDebt_ = 0, flameDebt_ = 0, plasmaCycleT_ = 0;
+    unsigned laserVolley_ = 0;
 };

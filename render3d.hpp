@@ -1,5 +1,6 @@
 #pragma once
 #include <algorithm>
+#include <array>
 #include <functional>
 #include "raylib.h"
 #include "view.hpp"
@@ -55,6 +56,10 @@ public:
     int enemyModel(const std::string& file);
     // Where the model's weapon muzzle (sidecar JSON "muzzle") sits in playfield-local coords.
     Vector2 muzzleLocal(int model, Vector2 shipLocal, float depth = 0.f) const;
+    // Project the four player cannon barrel tips through the current gameplay camera.
+    std::array<Vector2, 4> playerCannonMuzzlesLocal(const View& view, float cameraTurn,
+                                                    Vector2 shipLocal, float pitch, float roll,
+                                                    float depth = 0.f) const;
     // A real model-space shield shell.  It is rendered in the same 3D pass as the player,
     // rather than as a camera-facing sprite, so the ship remains inside the sphere in both views.
     void drawPlayerShield(Vector2 local, float pitch, float roll, float charge, float depth = 0.f);
@@ -341,6 +346,8 @@ private:
     void setupCamera();
     Vector3 toWorld(Vector2 local, float depth = 0.f) const;
     Matrix makeShipMatrix(Vector3 pos, bool facingBack, float pitch, float roll, float scale) const;
+    Matrix makeShipMatrix(Vector3 pos, bool facingBack, float pitch, float roll, float scale,
+                          const View& poseView) const;
     Vector3 nozzleModel(int i) const;
     Vector3 enemyNozzle(int model, int i) const { return em(model).noz[i & 1]; }
 };
