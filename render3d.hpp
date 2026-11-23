@@ -225,8 +225,9 @@ private:
     Vector4 shieldHits_[4]{{0, 0, 1, -100}, {0, 0, 1, -100}, {0, 0, 1, -100}, {0, 0, 1, -100}};
     int nextShieldHit_ = 0;
     float shieldShown_ = 0.f;  // displayed shield fraction: eases toward the real value so drops/refills animate
-    // Overhead player only: half current on-screen size (shipScale_ * this). Side/enemies unchanged.
-    static constexpr float kTopDownPlayerScaleMul = 0.5f;
+    // Overhead fighter fills most of its existing shield; the shield keeps its own scale.
+    static constexpr float kTopDownPlayerScaleMul = 1.2f;
+    static constexpr float kTopDownShieldScaleMul = 0.5f;
     static constexpr float kSidePlayerScaleMul = 0.85f;  // side player ~15% smaller (Ryan)
     // The replacement starfighter is authored at a larger world-unit scale than
     // the legacy normalized player mesh.
