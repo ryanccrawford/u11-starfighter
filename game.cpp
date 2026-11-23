@@ -92,13 +92,15 @@ using namespace cfg;
 namespace {
 const char* pickupLetter(PickupType t) {
     switch (t) { case PickupType::Weapon: return "W"; case PickupType::Missiles: return "M"; case PickupType::Shield: return "S";
-                 case PickupType::Repair: return "+"; case PickupType::Rapid: return "R"; case PickupType::Flamer: return "F"; case PickupType::Plasma: return "P"; }
+                 case PickupType::Repair: return "+"; case PickupType::Rapid: return "R"; case PickupType::Flamer: return "F";
+                 case PickupType::Plasma: return "P"; case PickupType::Rotary: return "6"; }
     return "?";
 }
 Color pickupColor(PickupType t) {
     switch (t) { case PickupType::Weapon: return {120, 230, 255, 255}; case PickupType::Missiles: return ORANGE;
                  case PickupType::Shield: return {120, 160, 255, 255}; case PickupType::Repair: return GREEN; case PickupType::Rapid: return {255, 120, 220, 255};
-                 case PickupType::Flamer: return {255, 120, 30, 255}; case PickupType::Plasma: return {200, 90, 255, 255}; }
+                 case PickupType::Flamer: return {255, 120, 30, 255}; case PickupType::Plasma: return {200, 90, 255, 255};
+                 case PickupType::Rotary: return {90, 235, 255, 255}; }
     return WHITE;
 }
 constexpr float kPickupVisualRadius = 21.f;  // matches the 42 px rendered 3D pickup diameter
@@ -399,8 +401,8 @@ void Game::loadSave() {
     int inv = 0;
     if (f) f >> inv;        // optional (t260): Options > UP/DOWN inverted
     g_invertPitch = inv != 0;
-    ownedWeapons = (owned & 7u) | 1u;
-    if (const char* e = getenv("OWN_WEAPONS")) ownedWeapons |= (unsigned)atoi(e) & 7u;   // test hook (not saved unless something saves)
+    ownedWeapons = (owned & 15u) | (1u << kPrimaryLaser);
+    if (const char* e = getenv("OWN_WEAPONS")) ownedWeapons |= (unsigned)atoi(e) & 15u;   // test hook (not saved unless something saves)
     weapons.primary = (prim >= 0 && prim < kPrimaryCount && ((ownedWeapons >> prim) & 1u)) ? prim : kPrimaryLaser;
     if (gfxMode < 0 || gfxMode > 2) gfxMode = 0;
     applyQuality();
@@ -520,12 +522,13 @@ void Game::beginPlaying() {
         if (getenv("TURRET_REVIEW_SHOOT")) player.pos.y = 68.f * s;
     }
     // t219: owned primaries are a save-game property (kept for the rest of the game, every level)
-    weaponGiftT = (L.id == "level_04" && !((ownedWeapons >> kPrimaryFlame) & 1u)) ? 16.f
+    weaponGiftT = (L.id == "level_02" && !((ownedWeapons >> kPrimaryRotary) & 1u)) ? 16.f
+                : (L.id == "level_04" && !((ownedWeapons >> kPrimaryFlame) & 1u)) ? 16.f
                 : (L.id == "level_07" && !((ownedWeapons >> kPrimaryPlasma) & 1u)) ? 22.f : 0.f;
         weaponNoteT = 0.f; beamSoundT = 0.f; hudMessageT = 0.f; switchWasHeld = false;
     weapons.flames.clear(); weapons.beamOn = false; weapons.flameOn = false; weapons.plasmaHeat = 0.f; weapons.plasmaLock = 0.f;
-    if (L.id == "level_05" && (ownedWeapons & 7u) != 7u) {   // The Warden: every primary online
-        ownedWeapons |= 7u; writeSave(); weaponNote = "ALL WEAPONS ONLINE"; weaponNoteT = 3.5f;
+    if (L.id == "level_05" && (ownedWeapons & 15u) != 15u) {   // The Warden: every primary online
+        ownedWeapons |= 15u; writeSave(); weaponNote = "ALL WEAPONS ONLINE"; weaponNoteT = 3.5f;
         fprintf(stderr, "WEAPON all online (Warden)\n");
     }
     if (const char* e = getenv("WEAPON")) selectWeapon(atoi(e), false);
@@ -572,6 +575,7 @@ void Game::finishLevel() {
         const std::string& id = db.levels()[levelIdx].id;
         if (id == "level_04" && !((ownedWeapons >> kPrimaryFlame) & 1u)) { ownedWeapons |= 1u << kPrimaryFlame; weaponNote = "FLAMETHROWER UNLOCKED"; weaponNoteT = 3.f; }
         if (id == "level_07" && !((ownedWeapons >> kPrimaryPlasma) & 1u)) { ownedWeapons |= 1u << kPrimaryPlasma; weaponNote = "PLASMA LANCE UNLOCKED"; weaponNoteT = 3.f; }
+        if (id == "level_02" && !((ownedWeapons >> kPrimaryRotary) & 1u)) { ownedWeapons |= 1u << kPrimaryRotary; weaponNote = "ROTARY LASER UNLOCKED"; weaponNoteT = 3.f; }
     }
     fprintf(stderr, "WEAPON at clear owned=%u primary=%d\n", ownedWeapons, weapons.primary);
     if (db.levels()[levelIdx].id == "level_05")   // t251: rest-zone verification
@@ -898,6 +902,7 @@ void Game::updateCombatInput() {
         if (IsKeyPressed(KEY_ONE)) selectWeapon(kPrimaryLaser, true);
         if (IsKeyPressed(KEY_TWO)) selectWeapon(kPrimaryFlame, true);
         if (IsKeyPressed(KEY_THREE)) selectWeapon(kPrimaryPlasma, true);
+        if (IsKeyPressed(KEY_FOUR)) selectWeapon(kPrimaryRotary, true);
         // t260: X flips UP/DOWN (only where up/down is pitch: the trench run); saved like the Options toggle
         bool flipX = IsKeyPressed(KEY_X);
         if (const char* e = getenv("INVERT_TEST_AT")) {   // hidden test runs: virtual X presses at these level times
@@ -990,9 +995,9 @@ void Game::updatePlayer(float dt) {
         }
         static const float autoWeapon = getenv("AUTOWEAPON") ? (float)atof(getenv("AUTOWEAPON")) : 0.f;   // capture hook: cycle owned primaries
         if (autoWeapon > 0.f) { static float acc = 0.f; acc += dt; if (acc >= autoWeapon) { acc = 0.f; cycleWeapon(1); } }
-        const auto cannonMuzzles = r3d.playerCannonMuzzlesLocal(view, cameraTurn, player.pos, pPitch, pRoll, player.hiddenAxis);
+        const auto muzzles = r3d.playerMuzzlesLocal(view, cameraTurn, player.pos, pPitch, pRoll, player.hiddenAxis);
         weapons.update(dt, player.pos, enemies.list, view, fx, audio, primary && !holdFire && !appr.cam3d && !appr.padLock && !moonIntro, secondary, -aim,
-                       turretTarget.active ? &turretTarget : nullptr, cannonMuzzles);
+                       turretTarget.active ? &turretTarget : nullptr, muzzles.cannons, muzzles.rotary);
         {   // plasma lance overheat / recovered cues (same designer sounds as the laser heat)
             static bool lockWas = false;
             // (t235: the lockout alarm / vent / cooling hiss are the lance's own now: Audio::plasmaLance)
@@ -1290,6 +1295,7 @@ void Game::applyPickup(PickupType t) {
         case PickupType::Rapid: weapons.rapid = kRapidTime; msg = "RAPID FIRE"; break;
         case PickupType::Flamer: grantWeapon(kPrimaryFlame); msg = "FLAMETHROWER"; break;
         case PickupType::Plasma: grantWeapon(kPrimaryPlasma); msg = "PLASMA LANCE"; break;
+        case PickupType::Rotary: grantWeapon(kPrimaryRotary); msg = "ROTARY LASER"; break;
     }
     hudMessage = msg; hudMessageT = 1.7f; hudMessageColor = pickupColor(t);
     switch (t) {
@@ -1298,7 +1304,7 @@ void Game::applyPickup(PickupType t) {
         case PickupType::Repair: audio.play(Sfx::RepairPickup, 0.78f, 0.02f); break;
         case PickupType::Rapid: audio.play(Sfx::RapidPickup, 0.84f, 0.015f); break;
         case PickupType::Missiles: audio.play(Sfx::Pickup, 0.8f, 0); break;
-        default: break;   // Flamer / Plasma: grantWeapon() plays its own cue
+        default: break;   // primary unlocks: grantWeapon() plays its own cue
     }
 }
 
@@ -2379,8 +2385,9 @@ void Game::drawWorld() const {
         const float pl = kLaserLength * kBoltQuadScale * view.s;
         weapons.lasers.each([&](const Laser& l) {
             const Vector2 p = view.toScreen(l.pos), dd = Vector2Normalize(view.dirToScreen(l.vel));
-            const Vector2 c = Vector2Subtract(p, Vector2Scale(dd, pl * 0.45f));
-            DrawTexturePro(gl, gr, {c.x, c.y, pl * 1.1f, pl * 0.45f}, {pl * 0.55f, pl * 0.225f}, atan2f(dd.y, dd.x) * RAD2DEG, Fade({0, 10, 30, 255}, 0.6f));
+            const float len = pl * l.visualScale;
+            const Vector2 c = Vector2Subtract(p, Vector2Scale(dd, len * 0.45f));
+            DrawTexturePro(gl, gr, {c.x, c.y, len * 1.1f, len * 0.45f}, {len * 0.55f, len * 0.225f}, atan2f(dd.y, dd.x) * RAD2DEG, Fade({0, 10, 30, 255}, 0.6f));
         });
     }
     // additive batch: flames (sprites only in 2D), glows, weapons, particles, pickups glow
@@ -2448,14 +2455,14 @@ void Game::drawWorld() const {
         if (r3d.pickupReady()) {
             r3d.beginPickupBatch();
             pickups.each([&](const Pickup& p) {
-                r3d.drawPickup(p.pos, (int)p.type > (int)PickupType::Rapid ? (int)PickupType::Weapon : (int)p.type, (p.type == PickupType::Flamer || p.type == PickupType::Plasma ? 52 : 42) * s, pickupColor(p.type), pickupOpacity(p),
+                r3d.drawPickup(p.pos, (int)p.type > (int)PickupType::Rapid ? (int)PickupType::Weapon : (int)p.type, (p.type == PickupType::Flamer || p.type == PickupType::Plasma || p.type == PickupType::Rotary ? 52 : 42) * s, pickupColor(p.type), pickupOpacity(p),
                                 pickupFlash(p), pickupDissolve(p), pickupExpand(p));
             });
             r3d.endPickupBatch();
         }
         if (playerVisible) {
             r3d.drawShip(player.pos, player.def->size * s, false, pPitch, pRoll, WHITE, true, pPower,
-                     nullptr, 0, nullptr, {0, 0, 0, 0}, player.hiddenAxis, weapons.heat);
+                     nullptr, 0, nullptr, {0, 0, 0, 0}, player.hiddenAxis, weapons.heat, nullptr, weapons.rotarySpin);
         }
         enemies.list.each([&](const Enemy& e) {
             float ep = 0, er = 0;
@@ -2678,7 +2685,7 @@ void Game::drawTouchControls() const {
         drawWeaponIcon({sc.x, sc.y - sr * 0.12f}, sr * 0.75f, weapons.primary, on ? 0.8f : 0.3f);
         for (int i = 0; i < kPrimaryCount; i++) {   // owned dots, the selected one bright
             const bool own = (ownedWeapons >> i) & 1u;
-            DrawCircleV({sc.x + (i - 1) * 9 * s, sc.y + sr * 0.55f}, 2.6f * s, !own ? Fade(GRAY, 0.18f) : i == weapons.primary ? Fade(WHITE, 0.85f) : Fade(SKYBLUE, 0.45f));
+            DrawCircleV({sc.x + (i - (kPrimaryCount - 1) * 0.5f) * 9 * s, sc.y + sr * 0.55f}, 2.6f * s, !own ? Fade(GRAY, 0.18f) : i == weapons.primary ? Fade(WHITE, 0.85f) : Fade(SKYBLUE, 0.45f));
         }
         if (on) { const int f3 = (int)(11 * s); DrawText("SWAP", (int)(sc.x - MeasureText("SWAP", f3) / 2), (int)(sc.y - sr - 13 * s), f3, Fade(RAYWHITE, 0.45f)); }
     }
@@ -3485,7 +3492,7 @@ void Game::grantWeapon(int w) {
     writeSave();
     fprintf(stderr, "WEAPON granted %s owned=%u\n", primaryName(w), ownedWeapons);                       // kept for the rest of the game: every level, every replay
     selectWeapon(w, false);
-    weaponNote = had ? primaryName(w) : (w == kPrimaryFlame ? "FLAMETHROWER ONLINE" : "PLASMA LANCE ONLINE");
+    weaponNote = had ? primaryName(w) : (w == kPrimaryFlame ? "FLAMETHROWER ONLINE" : w == kPrimaryPlasma ? "PLASMA LANCE ONLINE" : "ROTARY LASER ONLINE");
     weaponNoteT = 2.6f;
     audio.play(Sfx::WeaponPickup, 0.9f, 0.015f);
 }
@@ -3493,14 +3500,14 @@ void Game::grantWeapon(int w) {
 void Game::updateWeaponGifts(float dt) {
     (void)dt;
     const LevelDef& L = db.levels()[levelIdx];
-    const int want = L.id == "level_04" ? kPrimaryFlame : L.id == "level_07" ? kPrimaryPlasma : -1;
+    const int want = L.id == "level_02" ? kPrimaryRotary : L.id == "level_04" ? kPrimaryFlame : L.id == "level_07" ? kPrimaryPlasma : -1;
     if (want < 0 || ((ownedWeapons >> want) & 1u) || weaponGiftT <= 0.f || levelTime < weaponGiftT) return;
     if (L.liftoff && levelTime > kLiftGunsTo - 6.f) { weaponGiftT = 0.f; return; }   // given at the clear instead
     bool live = false;
-    pickups.each([&](const Pickup& p) { if (p.type == PickupType::Flamer || p.type == PickupType::Plasma) live = true; });
+    pickups.each([&](const Pickup& p) { if (p.type == PickupType::Flamer || p.type == PickupType::Plasma || p.type == PickupType::Rotary) live = true; });
     if (!live) if (Pickup* p = pickups.spawn()) {
         p->pos = {view.forward() * 0.96f, view.lateral() * Clamp(player.pos.y / std::max(1.f, view.lateral()), 0.3f, 0.7f)};
-        p->type = want == kPrimaryFlame ? PickupType::Flamer : PickupType::Plasma;
+        p->type = want == kPrimaryFlame ? PickupType::Flamer : want == kPrimaryPlasma ? PickupType::Plasma : PickupType::Rotary;
         fprintf(stderr, "WEAPON gift %s spawned t=%.1f\n", primaryName(want), levelTime);
     }
     weaponGiftT = levelTime + 15.f;    // missed: it comes round again
@@ -3511,7 +3518,15 @@ Vector2 Game::switchButtonPos() const {
 }
 
 void Game::drawWeaponIcon(Vector2 c, float r, int w, float a) const {
-    if (w == kPrimaryFlame) {
+    if (w == kPrimaryRotary) {
+        DrawCircleLinesV({c.x - r * 0.1f, c.y}, r * 0.35f, Fade(SKYBLUE, a));
+        for (int i = 0; i < 6; ++i) {
+            const float angle = i * PI / 3.f;
+            DrawCircleV({c.x - r * 0.1f + cosf(angle) * r * 0.25f,
+                         c.y + sinf(angle) * r * 0.25f}, r * 0.075f, Fade(RAYWHITE, a));
+        }
+        DrawLineEx({c.x + r * 0.30f, c.y}, {c.x + r * 0.58f, c.y}, r * 0.10f, Fade(SKYBLUE, a));
+    } else if (w == kPrimaryFlame) {
         DrawCircleV({c.x - r * 0.10f, c.y + r * 0.10f}, r * 0.34f, Fade({255, 90, 20, 255}, a));
         DrawTriangle({c.x - r * 0.42f, c.y + r * 0.02f}, {c.x + r * 0.05f, c.y - r * 0.62f}, {c.x + r * 0.22f, c.y + r * 0.10f}, Fade({255, 120, 30, 255}, a));
         DrawCircleV({c.x - r * 0.06f, c.y + r * 0.16f}, r * 0.20f, Fade({255, 210, 90, 255}, a));

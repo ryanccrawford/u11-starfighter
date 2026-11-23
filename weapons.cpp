@@ -58,24 +58,29 @@ const Texture2D& boltTexture(bool enemy) {
 }
 
 const char* primaryName(int w) {
-    switch (w) { case kPrimaryFlame: return "FLAMER"; case kPrimaryPlasma: return "PLASMA"; default: return "LASER"; }
+    switch (w) { case kPrimaryFlame: return "FLAMER"; case kPrimaryPlasma: return "PLASMA";
+                 case kPrimaryRotary: return "ROTARY LASER"; default: return "LASER"; }
 }
 
 void Weapons::reset() {
     lasers.clear(); missiles.clear(); sparks.clear(); flames.clear();
     plasmaHeat = 0; plasmaLock = 0; beamOn = false; beamLen = 0; beamAcc = 0; beamHit = false; beamHitPos = {}; beamDepthScale = 1.f;
     flameOn = false; flameTick = 0; flameDebt_ = 0; flameStops.fill(0.f); plasmaCycleT_ = 0.f;
-    level = 1; ammo = kMissileStartAmmo; rapid = 0; heat = 0; overheat = 0; flameBeam = false; fireT_ = 0; missileT_ = 0.5f;
-    laserVolley_ = 0;
+    level = 1; ammo = kMissileStartAmmo; rapid = 0; heat = 0; overheat = 0; flameBeam = false; fireT_ = 0; rotaryT_ = 0; missileT_ = 0.5f;
+    laserVolley_ = rotarySide_ = 0; rotarySpin = 0;
 }
 
 void Weapons::update(float dt, Vector2 ship, Pool<Enemy, 160>& enemies, const View& v, Particles& fx, Audio& sfx,
                      bool primaryFire, bool secondaryFire, float aim, const ProjectileTarget* extraTarget,
-                     const std::array<Vector2, 4>& cannonMuzzles) {
+                     const std::array<Vector2, 4>& cannonMuzzles,
+                     const std::array<Vector2, 2>& rotaryMuzzles) {
     const float s = v.s;
     rapid = std::fmax(0.f, rapid - dt);
     overheat = std::fmax(0.f, overheat - dt);
     heat = std::fmax(0.f, heat - dt * (rapid > 0 ? 1.8f : 0.72f));
+    const bool rotaryRequested = primary == kPrimaryRotary && primaryFire && overheat <= 0 && (rapid > 0 || heat < 1.f);
+    rotarySpin += (rotaryRequested ? 1.f - rotarySpin : -rotarySpin) * fminf(1.f, dt * (rotaryRequested ? 8.f : 3.f));
+    if (rotarySpin < 0.01f) rotarySpin = 0.f;
     const float ca0 = std::cos(aim), sa0 = std::sin(aim);
     const Vector2 muzzle{ship.x + 40 * s * ca0, ship.y + 40 * s * sa0}, fwd{ca0, sa0};
 
@@ -164,11 +169,30 @@ void Weapons::update(float dt, Vector2 ship, Pool<Enemy, 160>& enemies, const Vi
                 l->flightSound = sfx.laserFire();
             }
     }
+    // Six-barrel rotary clusters: small bolts alternate sides as the rotor reaches speed.
+    rotaryT_ -= dt;
+    if (rotaryRequested && rotarySpin >= 0.4f && rotaryT_ <= 0.f) {
+        rotaryT_ = cfg::dev.weaponCooldown * 0.65f * (rapid > 0 ? kRapidMultiplier : 1.f);
+        if (rapid <= 0) {
+            heat = std::fmin(1.f, heat + 0.07f);
+            if (heat >= 1.f) overheat = 1.15f;
+        }
+        if (Laser* l = lasers.spawn()) {
+            l->pos = rotaryMuzzles[rotarySide_++ % rotaryMuzzles.size()];
+            l->previousPos = l->pos; l->faction = Faction::Player;
+            l->vel = {std::cos(aim) * kLaserSpeed * s, std::sin(aim) * kLaserSpeed * s};
+            l->damage = cfg::dev.laserDamage;
+            l->visualScale = 0.38f;
+            l->col = rapid > 0 ? Color{255, 120, 220, 255} : Color{120, 230, 255, 255};
+            l->flightSound = sfx.laserFire();
+        }
+    }
     // bolt trail sparks (screen space): unit = bolt length / 1.7, emitted along the distance travelled this frame
-    const float boltLen = kLaserLength * kBoltQuadScale * s, unit = boltLen / 1.7f;
+    const float baseBoltLen = kLaserLength * kBoltQuadScale * s;
     sparkDebt_ += kSparkRate * dt;
     const int perBolt = (int)sparkDebt_; sparkDebt_ -= perBolt;
     lasers.each([&](Laser& l) {
+        const float boltLen = baseBoltLen * l.visualScale, unit = boltLen / 1.7f;
         Vector2 prev = l.pos;
         l.previousPos = l.pos;
         l.previousHiddenAxis = l.hiddenAxis;
@@ -183,7 +207,7 @@ void Weapons::update(float dt, Vector2 ship, Pool<Enemy, 160>& enemies, const Vi
                                     Vector2Scale(nrm, frand(-.5f, .5f) * kSparkSpawnSpread * unit));
                 p->vel = Vector2Add(Vector2Scale(dirS, -frand(kSparkDriftMin, kSparkDriftMax) * unit),
                                     Vector2Scale(nrm, frand(-.5f, .5f) * kSparkSpread * unit));
-                p->dur = frand(kSparkLifeMin, kSparkLifeMax); p->size = frand(kSparkSizeMin, kSparkSizeMax) * s; p->life = 1;
+                p->dur = frand(kSparkLifeMin, kSparkLifeMax); p->size = frand(kSparkSizeMin, kSparkSizeMax) * s * l.visualScale; p->life = 1;
             }
     });
     sparks.each([&](BoltSpark& p) {
@@ -271,7 +295,8 @@ void Weapons::draw(const View& v, const Texture2D& glow) const {
         Vector2 p = v.toScreen(l.pos), d = v.dirToScreen(l.vel);
         float rot = std::atan2(d.y, d.x) * RAD2DEG;
         Color tint = l.col.g < 200 ? Color{255, 175, 235, 255} : WHITE;   // rapid-fire bolts keep their pink cue
-        DrawTexturePro(bt, {0, 0, (float)bt.width, (float)bt.height}, {p.x, p.y, L, Wd}, {L * 0.96f, Wd / 2}, rot, tint);  // nose at the bolt position
+        const float len = L * l.visualScale, width = Wd * l.visualScale;
+        DrawTexturePro(bt, {0, 0, (float)bt.width, (float)bt.height}, {p.x, p.y, len, width}, {len * 0.96f, width / 2}, rot, tint);  // nose at the bolt position
     });
     // trail sparks: colour = mix(cool #1c82ff, hot #bfffff, life), alpha = life * gain, size shrinks to 50%
     static Texture2D st = makeSparkTexture();

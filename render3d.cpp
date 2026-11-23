@@ -747,7 +747,24 @@ void Render3D::init(const char* root) {
         else if (n.find("GUN_SPIN_") == 0) playerGunAnims_.push_back(i);
         else if (n.find("ENGINE_EXHAUST_") == 0) playerExhaustAnims_.push_back(i);
     }
+    for (int i = 0; i < player_.meshCount; ++i) {
+        const Mesh& mesh = player_.meshes[i];
+        if (!mesh.boneIds || !mesh.boneWeights || !mesh.boneMatrices ||
+            !mesh.animVertices || !mesh.animNormals || !mesh.normals) continue;
+        bool gun = false, other = false;
+        for (int v = 0; v < mesh.vertexCount && !other; ++v)
+            for (int k = 0; k < 4; ++k) {
+                const int j = v * 4 + k;
+                if (mesh.boneWeights[j] <= 0.f) continue;
+                const int bone = mesh.boneIds[j];
+                if (bone >= player_.boneCount) { other = true; break; }
+                if (strncmp(player_.bones[bone].name, "BONE_Rotary", 11) == 0) gun = true;
+                else other = true;
+            }
+        if (gun && !other) playerGunMeshes_.push_back(i);
+    }
     fprintf(stderr, "R3D player model animations=%d gear=%zu guns=%zu exhaust=%zu\n", playerAnimCount_, playerGearAnims_.size(), playerGunAnims_.size(), playerExhaustAnims_.size());
+    fprintf(stderr, "R3D player rotary meshes=%zu\n", playerGunMeshes_.size());
     playerAnchors_ = findAnchors(player_, {-1, 0, 0}, {0, 0, 1});   // t250: red_fighter: nose -X, wings Z
     shipLightsOn_ = !getenv("NOSHIPLIGHTS");
     {   // t250: one soft round sprite for every ship light (hot core + radial falloff, no corners)
@@ -1250,23 +1267,28 @@ Vector2 Render3D::muzzleLocal(int model, Vector2 shipLocal, float depth) const {
     return view_.toLocal(GetWorldToScreen(Vector3Transform(em(model).muzzle, M), cam_));
 }
 
-std::array<Vector2, 4> Render3D::playerCannonMuzzlesLocal(const View& view, float cameraTurn,
-                                                           Vector2 shipLocal, float pitch, float roll,
-                                                           float depth) const {
-    // Barrel fronts in player_starfighter.glb: nose pair, then outer-wing pair.
+Render3D::PlayerMuzzles Render3D::playerMuzzlesLocal(const View& view, float cameraTurn,
+                                                     Vector2 shipLocal, float pitch, float roll,
+                                                     float depth) const {
+    // Barrel fronts in player_starfighter.glb: nose pair, outer-wing pair,
+    // then the upper firing positions of the two six-barrel rotary clusters.
     // Model basis: nose -X, up +Y, port +Z.
-    static const std::array<Vector3, 4> tips{{
+    static const std::array<Vector3, 6> tips{{
         {-5.73f, -0.20f,  0.66f}, {-5.73f, -0.20f, -0.66f},
-        {-1.03f, -0.10f,  4.26f}, {-1.03f, -0.10f, -4.26f}
+        {-1.03f, -0.10f,  4.26f}, {-1.03f, -0.10f, -4.26f},
+        {-0.745f, -0.27f, 2.65f}, {-0.745f, -0.27f, -2.65f}
     }};
     const Camera3D camera = CameraSystem::makeCamera(view, Clamp(cameraTurn, -1.f, 1.f));
     const Vector3 pos = CameraSystem::toWorld(view, camera, shipLocal, depth);
     const float S = shipScale_ * kPlayerModelScale *
                     (view.mode == Mode::TopDown ? kTopDownPlayerScaleMul : kSidePlayerScaleMul);
     const Matrix M = makeShipMatrix(pos, false, pitch, roll, S, view);
-    std::array<Vector2, 4> result{};
-    for (size_t i = 0; i < tips.size(); ++i)
-        result[i] = view.toLocal(GetWorldToScreen(Vector3Transform(tips[i], M), camera));
+    PlayerMuzzles result{};
+    for (size_t i = 0; i < tips.size(); ++i) {
+        const Vector2 p = view.toLocal(GetWorldToScreen(Vector3Transform(tips[i], M), camera));
+        if (i < result.cannons.size()) result.cannons[i] = p;
+        else result.rotary[i - result.cannons.size()] = p;
+    }
     return result;
 }
 
@@ -1929,21 +1951,44 @@ void Render3D::drawPickup(Vector2 local, int type, float sizePx, Color accent,
     DrawModel(pickup_[type], {0, 0, 0}, 1.f, WHITE);
 }
 
-void Render3D::animatePlayer(float weaponHeat) {
-    if (!playerAnims_ || playerAnimCount_ <= 0) return;
-    playerAnimClock_ += fminf(GetFrameTime(), 0.1f) * 30.f;
-    auto apply = [&](int index, int frame) {
-        if (index < 0 || index >= playerAnimCount_) return;
-        const ModelAnimation& a = playerAnims_[index];
-        if (a.frameCount <= 0 || !IsModelAnimationValid(player_, a)) return;
-        UpdateModelAnimation(player_, a, frame % a.frameCount);
-    };
-    // Keep the landing assemblies stowed in normal flight. Their complete clips remain
-    // in the GLB for the liftoff/landing controller to select later.
-    for (int index : playerGearAnims_) apply(index, 0);
-    for (int index : playerExhaustAnims_) apply(index, (int)playerAnimClock_);
-    const bool firing = weaponHeat > 0.01f;
-    for (int index : playerGunAnims_) apply(index, firing ? (int)playerAnimClock_ : 0);
+void Render3D::animatePlayerRotary(float spin) {
+    if (spin <= 0.f || !playerAnims_ || playerGunAnims_.empty() || playerGunMeshes_.empty()) return;
+    const ModelAnimation& a = playerAnims_[playerGunAnims_.front()];
+    if (a.frameCount <= 0 || !IsModelAnimationValid(player_, a)) return;
+    // This clip keys only the 30 rotary barrel/bore bones. No landing, engine,
+    // or whole-hull animation is applied to the live player model.
+    playerGunFrame_ = fmodf(playerGunFrame_ + fminf(GetFrameTime(), 0.1f) * 120.f * Clamp(spin, 0.f, 1.f),
+                            (float)a.frameCount);
+    UpdateModelAnimationBones(player_, a, (int)playerGunFrame_);
+    // raylib's full UpdateModelAnimation assumes every mesh has animation buffers;
+    // this GLB also contains unskinned hull meshes. Skin only the rotary meshes.
+    for (int i : playerGunMeshes_) {
+        Mesh& mesh = player_.meshes[i];
+        for (int v = 0; v < mesh.vertexCount; ++v) {
+            const Vector3 base{mesh.vertices[v * 3], mesh.vertices[v * 3 + 1], mesh.vertices[v * 3 + 2]};
+            const Vector3 normal{mesh.normals[v * 3], mesh.normals[v * 3 + 1], mesh.normals[v * 3 + 2]};
+            Vector3 p{}, n{};
+            for (int k = 0; k < 4; ++k) {
+                const int j = v * 4 + k;
+                const float weight = mesh.boneWeights[j];
+                if (weight <= 0.f) continue;
+                const Matrix& bone = mesh.boneMatrices[mesh.boneIds[j]];
+                p = Vector3Add(p, Vector3Scale(Vector3Transform(base, bone), weight));
+                Matrix rotation = bone;
+                rotation.m12 = rotation.m13 = rotation.m14 = 0.f;
+                n = Vector3Add(n, Vector3Scale(Vector3Transform(normal, rotation), weight));
+            }
+            mesh.animVertices[v * 3] = p.x;
+            mesh.animVertices[v * 3 + 1] = p.y;
+            mesh.animVertices[v * 3 + 2] = p.z;
+            n = Vector3Normalize(n);
+            mesh.animNormals[v * 3] = n.x;
+            mesh.animNormals[v * 3 + 1] = n.y;
+            mesh.animNormals[v * 3 + 2] = n.z;
+        }
+        rlUpdateVertexBuffer(mesh.vboId[0], mesh.animVertices, mesh.vertexCount * 3 * sizeof(float), 0);
+        rlUpdateVertexBuffer(mesh.vboId[2], mesh.animNormals, mesh.vertexCount * 3 * sizeof(float), 0);
+    }
 }
 
 void Render3D::endPickupBatch() {
@@ -1958,11 +2003,9 @@ void Render3D::endPickupBatch() {
 void Render3D::drawShip(Vector2 local, float sizePx, bool facingBack, float pitch, float roll,
                         Color tint, bool player, float flamePower, const float (*dent)[4], int nDent,
                         const EnemyAnim* anim, Color flameTint, float depth, float weaponHeat,
-                        const float (*surfaceFx)[4]) {
+                        const float (*surfaceFx)[4], float rotarySpin) {
     if (!ok_) return;
-    // The player GLB carries the authored clips, but animation playback stays
-    // disabled until the rig is validated against the live player pose. This
-    // keeps detached sub-meshes from entering gameplay or destabilizing Level 1.
+    if (player && !hidePlayer_) animatePlayerRotary(rotarySpin);
     if (player) flameTint = {0, 0, 0, 0};  // the player's flame is never tinted
     const int mi = (!player && anim && anim->model > 0 && anim->model < (int)em_.size()) ? anim->model : 0;
     if (!player) {
