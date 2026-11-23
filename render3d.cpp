@@ -79,7 +79,7 @@ void main(){ uv=vertexTexCoord; worldPos=(matModel*vec4(vertexPosition,1.0)).xyz
 const char* METAL_FS = R"(#version 330
 in vec2 uv; in vec3 nrm; in vec3 worldPos;
 uniform sampler2D texture0; uniform vec4 colDiffuse; uniform vec3 lightDir, eye;
-uniform float metalness, roughness, envStrength, opacity; uniform float amb = 0.28;
+uniform float metalness, roughness, envStrength, opacity, chromeBoost; uniform float amb = 0.28;
 out vec4 o;
 void main(){
   vec4 texel=texture(texture0,uv)*colDiffuse;
@@ -98,6 +98,10 @@ void main(){
   float fresnel=pow(1.0-max(dot(n,v),0.0),5.0);
   vec3 base=texel.rgb*(amb+0.86*ndl);
   vec3 spec=vec3(0.72,0.80,0.88)*highlight*(0.22+0.78*metalness);
+  // The engine's polished chrome catches both a broad solar sheen and a tight
+  // glint. This is still the same single sun; no second light is introduced.
+  float sunFacing=max(dot(n,h),0.0);
+  spec+=vec3(0.83,0.90,1.0)*(0.48*pow(sunFacing,24.0)+1.22*pow(sunFacing,96.0))*ndl*chromeBoost;
   vec3 environment=env*envStrength*(0.12+0.48*metalness+0.40*fresnel);
   o=vec4(base*(1.0-0.22*metalness)+spec+environment,texel.a*opacity);
 })";
@@ -851,6 +855,19 @@ void Render3D::init(const char* root) {
     metalEnvStrength_ = GetShaderLocation(metal_, "envStrength");
     metalOpacity_ = GetShaderLocation(metal_, "opacity");
     SetShaderValue(metal_, GetShaderLocation(metal_, "lightDir"), &L, SHADER_UNIFORM_VEC3);
+    playerChromeSh_ = LoadShaderFromMemory(METAL_VS, METAL_FS);
+    for (int loc : {SHADER_LOC_VERTEX_POSITION, SHADER_LOC_VERTEX_TEXCOORD01, SHADER_LOC_VERTEX_NORMAL}) {
+        const char* name = loc == SHADER_LOC_VERTEX_POSITION ? "vertexPosition" : loc == SHADER_LOC_VERTEX_TEXCOORD01 ? "vertexTexCoord" : "vertexNormal";
+        playerChromeSh_.locs[loc] = GetShaderLocationAttrib(playerChromeSh_, name);
+    }
+    playerChromeSh_.locs[SHADER_LOC_MATRIX_MVP] = GetShaderLocation(playerChromeSh_, "mvp");
+    playerChromeSh_.locs[SHADER_LOC_MATRIX_MODEL] = GetShaderLocation(playerChromeSh_, "matModel");
+    playerChromeSh_.locs[SHADER_LOC_MATRIX_NORMAL] = GetShaderLocation(playerChromeSh_, "matNormal");
+    playerChromeSh_.locs[SHADER_LOC_COLOR_DIFFUSE] = GetShaderLocation(playerChromeSh_, "colDiffuse");
+    playerChromeSh_.locs[SHADER_LOC_MAP_DIFFUSE] = GetShaderLocation(playerChromeSh_, "texture0");
+    const float chromeBoost = 1.f;
+    SetShaderValue(playerChromeSh_, GetShaderLocation(playerChromeSh_, "chromeBoost"), &chromeBoost, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(playerChromeSh_, GetShaderLocation(playerChromeSh_, "lightDir"), &L, SHADER_UNIFORM_VEC3);
     playerGlassSh_ = LoadShaderFromMemory(METAL_VS, METAL_FS);
     playerGlassSh_.locs[SHADER_LOC_VERTEX_POSITION] = GetShaderLocationAttrib(playerGlassSh_, "vertexPosition");
     playerGlassSh_.locs[SHADER_LOC_VERTEX_TEXCOORD01] = GetShaderLocationAttrib(playerGlassSh_, "vertexTexCoord");
@@ -871,9 +888,10 @@ void Render3D::init(const char* root) {
     }
     // The imported GLB keeps separate metallic and canopy materials. Give those surfaces
     // the existing solar specular shader; preserve their authored base colors.
-    for (int i : {1, 3, 7}) {
+    for (int i : {1, 7}) {
         if (i < player_.materialCount) player_.materials[i].shader = metal_;
     }
+    if (player_.materialCount > 3) player_.materials[3].shader = playerChromeSh_;
     for (int i : {2, 9}) {
         if (i < player_.materialCount) player_.materials[i].shader = playerGlassSh_;
     }
@@ -1137,6 +1155,7 @@ void Render3D::shutdown() {
     ringTex_ = {};
     UnloadShader(flameSh_); UnloadShader(heatSh_); UnloadShader(shieldSh_); if (pickupSh_.id > 0) UnloadShader(pickupSh_);
     if (metal_.id > 0) UnloadShader(metal_);
+    if (playerChromeSh_.id > 0) UnloadShader(playerChromeSh_);
     if (playerGlassSh_.id > 0) UnloadShader(playerGlassSh_);
     if (dentSh_.id != lit_.id) UnloadShader(dentSh_); UnloadShader(lit_);
     if (titleGlyphSh_.id > 0 && titleGlyphSh_.id != rlGetShaderIdDefault()) UnloadShader(titleGlyphSh_);
@@ -1350,6 +1369,10 @@ void Render3D::setSceneLight(bool on, Vector3 lightDir, float metalAmb, float te
     if (metal_.id > 0) {
         SetShaderValue(metal_, GetShaderLocation(metal_, "lightDir"), &L, SHADER_UNIFORM_VEC3);
         SetShaderValue(metal_, GetShaderLocation(metal_, "amb"), &ma, SHADER_UNIFORM_FLOAT);
+    }
+    if (playerChromeSh_.id > 0) {
+        SetShaderValue(playerChromeSh_, GetShaderLocation(playerChromeSh_, "lightDir"), &L, SHADER_UNIFORM_VEC3);
+        SetShaderValue(playerChromeSh_, GetShaderLocation(playerChromeSh_, "amb"), &ma, SHADER_UNIFORM_FLOAT);
     }
     if (playerGlassSh_.id > 0) {
         SetShaderValue(playerGlassSh_, GetShaderLocation(playerGlassSh_, "lightDir"), &L, SHADER_UNIFORM_VEC3);
@@ -1574,6 +1597,11 @@ void Render3D::drawApproachScenery(const ApproachScene& a, ApproachOut& out) {
             SetShaderValue(metal_, metalRoughness_, &chromeRough, SHADER_UNIFORM_FLOAT);
             SetShaderValue(metal_, metalEnvStrength_, &chromeEnv, SHADER_UNIFORM_FLOAT);
             SetShaderValue(metal_, metalOpacity_, &opaque, SHADER_UNIFORM_FLOAT);
+            SetShaderValue(playerChromeSh_, GetShaderLocation(playerChromeSh_, "eye"), &c.position, SHADER_UNIFORM_VEC3);
+            SetShaderValue(playerChromeSh_, GetShaderLocation(playerChromeSh_, "metalness"), &chromeMetal, SHADER_UNIFORM_FLOAT);
+            SetShaderValue(playerChromeSh_, GetShaderLocation(playerChromeSh_, "roughness"), &chromeRough, SHADER_UNIFORM_FLOAT);
+            SetShaderValue(playerChromeSh_, GetShaderLocation(playerChromeSh_, "envStrength"), &chromeEnv, SHADER_UNIFORM_FLOAT);
+            SetShaderValue(playerChromeSh_, GetShaderLocation(playerChromeSh_, "opacity"), &opaque, SHADER_UNIFORM_FLOAT);
             SetShaderValue(playerGlassSh_, glassEye_, &c.position, SHADER_UNIFORM_VEC3);
             SetShaderValue(playerGlassSh_, glassMetalness_, &glassMetal, SHADER_UNIFORM_FLOAT);
             SetShaderValue(playerGlassSh_, glassRoughness_, &glassRough, SHADER_UNIFORM_FLOAT);
@@ -1995,6 +2023,11 @@ void Render3D::drawShip(Vector2 local, float sizePx, bool facingBack, float pitc
         SetShaderValue(metal_, metalRoughness_, &roughness, SHADER_UNIFORM_FLOAT);
         SetShaderValue(metal_, metalEnvStrength_, &envStrength, SHADER_UNIFORM_FLOAT);
         SetShaderValue(metal_, metalOpacity_, &opacity, SHADER_UNIFORM_FLOAT);
+        SetShaderValue(playerChromeSh_, GetShaderLocation(playerChromeSh_, "eye"), &eye, SHADER_UNIFORM_VEC3);
+        SetShaderValue(playerChromeSh_, GetShaderLocation(playerChromeSh_, "metalness"), &metalness, SHADER_UNIFORM_FLOAT);
+        SetShaderValue(playerChromeSh_, GetShaderLocation(playerChromeSh_, "roughness"), &roughness, SHADER_UNIFORM_FLOAT);
+        SetShaderValue(playerChromeSh_, GetShaderLocation(playerChromeSh_, "envStrength"), &envStrength, SHADER_UNIFORM_FLOAT);
+        SetShaderValue(playerChromeSh_, GetShaderLocation(playerChromeSh_, "opacity"), &opacity, SHADER_UNIFORM_FLOAT);
         const float glassMetalness = 0.06f, glassRoughness = 0.07f, glassEnv = 0.95f;
         SetShaderValue(playerGlassSh_, glassEye_, &eye, SHADER_UNIFORM_VEC3);
         SetShaderValue(playerGlassSh_, glassMetalness_, &glassMetalness, SHADER_UNIFORM_FLOAT);

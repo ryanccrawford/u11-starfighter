@@ -201,7 +201,7 @@ private:
     int pickupAnimFrame_[kPickupTypes] = {-1, -1, -1, -1, -1};
     BoundingBox pickupBounds_[kPickupTypes]{};
     Texture2D flameTex_{};
-    Shader lit_{}, titleGlyphSh_{}, metal_{}, playerGlassSh_{}, flameSh_{}, heatSh_{}, shieldSh_{};
+    Shader lit_{}, titleGlyphSh_{}, metal_{}, playerChromeSh_{}, playerGlassSh_{}, flameSh_{}, heatSh_{}, shieldSh_{};
     Shader pickupSh_{};
     RenderTexture2D scene_{};
     int fTime_ = -1, fRecolor_ = -1, hTime_ = -1, hScreen_ = -1, shipTris_ = 0, rtW_ = 0, rtH_ = 0;
