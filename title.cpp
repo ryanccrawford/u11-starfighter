@@ -111,21 +111,10 @@ void Game::drawTitle() {
         } else if (!scene3d) titleBg.draw();
     }
 
-    // ---- 2D light on top of the 3D: engine glow, sun bloom, grade ----
+    // ---- 2D light on top of the 3D: engine flames + heat mirage, sun bloom, grade ----
     const Texture2D& glow = fx.glowTexture(); const Rectangle gs{0, 0, (float)glow.width, (float)glow.height};
+    if (scene3d && so.titleShipPx > 1.f) r3d.drawHeatAndFlames();
     BeginBlendMode(BLEND_ADDITIVE);
-    if (scene3d && so.titleShipPx > 1.f) {   // twin engines: hot core + a soft blue plume behind the nozzles
-        const float g = so.titleShipPx * (0.16f + 0.02f * sinf(t * 23.f)) * (1.f + 0.6f * launchK);
-        for (int i = 0; i < 2; i++) {
-            const Vector2 n = so.titleNoz[i], e = so.titleExhaust;
-            for (int k = 0; k < 4; k++) {
-                const float q = k / 3.f, sz = g * (1.6f - 0.9f * q);
-                const Vector2 p{n.x + e.x * g * 1.6f * q, n.y + e.y * g * 1.6f * q};
-                DrawTexturePro(glow, gs, {p.x, p.y, sz, sz}, {sz / 2, sz / 2}, 0, Fade({90, 150, 255, 255}, 0.34f * (1.f - 0.7f * q)));
-            }
-            DrawTexturePro(glow, gs, {n.x, n.y, g * 0.55f, g * 0.55f}, {g * 0.275f, g * 0.275f}, 0, Fade({225, 240, 255, 255}, 0.85f));
-        }
-    }
     if (scene3d && so.sunOn) {   // sunrise bloom on the limb + a soft anamorphic streak (all from the one sun)
         const Vector2 P = so.sunDiscPx; const float R0 = fmaxf(3.f, so.sunRadPx), v = 0.35f + 0.65f * so.sunVis;
         const float b1 = R0 * 10.f, b2 = R0 * 26.f;

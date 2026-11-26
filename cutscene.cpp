@@ -1,4 +1,5 @@
 #include "cutscene.hpp"
+#include "render3d.hpp"
 #include "entities.hpp"
 #include "ui_theme.hpp"
 #include "raymath.h"
@@ -59,6 +60,7 @@ void Cutscene::begin() {
 #endif
             heroModel_ = LoadModel(heroPath.c_str());
             heroModelLoaded_ = heroModel_.meshCount > 0;
+            if (heroModelLoaded_) Render3D::hideExhaustConeMeshes(heroModel_);
             if (!heroModelLoaded_) fprintf(stderr, "CUTSCENE missing 3D hero model\n");
         } else if (!st.sprite.empty()) a.sheet = &assets_->sheet(st.sprite, "side_scroller");
         for (auto& x : actors_) if (x.id == a.id) { x = a; return; }

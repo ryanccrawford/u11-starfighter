@@ -763,6 +763,7 @@ void Render3D::init(const char* root) {
     // (one side reaches z=7.96), so mount this ship's glow on its actual lamp housings.
     playerAnchors_.port = {1.0f, 0.13f, 4.4f};
     playerAnchors_.stbd = {1.0f, 0.13f, -4.4f};
+    hideExhaustConeMeshes(player_);
     shipLightsOn_ = !getenv("NOSHIPLIGHTS");
     {   // t250: one soft round sprite for every ship light (hot core + radial falloff, no corners)
         const int N = 64;
@@ -1593,7 +1594,10 @@ void Render3D::drawApproachScenery(const ApproachScene& a, ApproachOut& out) {
             const Matrix keep = player_.transform;   // (gameplay's drawShip leaves its matrix here: measure the bare hull)
             player_.transform = MatrixIdentity();
             const BoundingBox bb = GetModelBoundingBox(player_);
-            const float len = fmaxf(0.01f, bb.max.x - bb.min.x), S = a.titleShipW * 2.f * th * d / len;
+            // Keep the title framing authored against the bind-pose X span (including the
+            // since-removed exhaust cones, 13.61 units) so the fighter stays the same size.
+            const float len = 13.61f;
+            const float S = a.titleShipW * 2.f * th * d / len;
             Matrix M = MatrixIdentity();
             M.m0 = X.x * S; M.m1 = X.y * S; M.m2 = X.z * S;
             M.m4 = U.x * S; M.m5 = U.y * S; M.m6 = U.z * S;
@@ -1627,6 +1631,19 @@ void Render3D::drawApproachScenery(const ApproachScene& a, ApproachOut& out) {
             const Vector2 nose = GetWorldToScreenEx(Vector3Transform({bb.min.x, 0, 0}, M), c, SW, SH);
             const Vector2 aft = GetWorldToScreenEx(Vector3Transform({bb.max.x, 0, 0}, M), c, SW, SH);
             out.titleShipPx = fmaxf(Vector2Distance(nose, aft), a.titleShipW * SH * 0.5f);
+            // Queue the same animated blue-white + heat-mirage plumes used in gameplay,
+            // sized in pixels-per-world-unit so they sit in the two engine nozzles.
+            plumes_.clear();
+            if (S > 1e-5f) {
+                const Vector3 aftWorld = {1.f / S, 0.f, 0.f};
+                Vector2 n0 = out.titleNoz[0];
+                Vector2 n1 = out.titleNoz[1];
+                Vector2 n0b = GetWorldToScreenEx(Vector3Transform(Vector3Add(nozzleModel(0), aftWorld), M), c, SW, SH);
+                const float unitPx = fmaxf(1.f, Vector2Distance(n0, n0b));
+                const float angDeg = atan2f(n0b.y - n0.y, n0b.x - n0.x) * RAD2DEG;
+                plumes_.push_back({n0, angDeg, unitPx, S, true, {0, 0, 0, 0}, 1.f});
+                plumes_.push_back({n1, angDeg, unitPx, S, true, {0, 0, 0, 0}, 1.f});
+            }
         }
 
         const float logoDepth = 0.68f;
@@ -2352,6 +2369,68 @@ void Render3D::drawFlamesOnly() {
     }
     rlDrawRenderBatchActive();
     EndShaderMode(); EndBlendMode();
+}
+
+void Render3D::hideExhaustConeMeshes(Model& model) {
+    // The authored cones use four emissive blue / cyan / heat-refraction materials.
+    // Zeroing the draw counts hides them without dropping nodes or material slots.
+    auto cone = [](Color c) {
+        const int r = c.r, g = c.g, b = c.b;
+        const bool cyanCore = r >= 110 && r <= 135 && g >= 210 && g <= 235 && b >= 250;
+        const bool ionBlue = r <= 20 && g >= 35 && g <= 65 && b >= 250;
+        const bool envelope = r <= 25 && g >= 15 && g <= 40 && b >= 250;
+        const bool heatRefr = r >= 20 && r <= 45 && g >= 35 && g <= 60 && b >= 50 && b <= 80;
+        return cyanCore || ionBlue || envelope || heatRefr;
+    };
+    int hidden = 0, tris = 0;
+    for (int i = 0; i < model.meshCount; i++) {
+        const int mi = model.meshMaterial ? model.meshMaterial[i] : 0;
+        if (mi < 0 || mi >= model.materialCount) continue;
+        const Color c = model.materials[mi].maps[MATERIAL_MAP_DIFFUSE].color;
+        if (!cone(c)) continue;
+        tris += model.meshes[i].triangleCount;
+        model.meshes[i].triangleCount = 0;
+        model.meshes[i].vertexCount = 0;
+        hidden++;
+    }
+    if (hidden) fprintf(stderr, "R3D hid %d exhaust-cone meshes (%d tris)\n", hidden, tris);
+}
+
+void Render3D::addPlume(Vector2 nozzle, float angDeg, float unitPx, float scale, float power) {
+    plumes_.push_back({nozzle, angDeg, unitPx, scale, true, {0, 0, 0, 0}, Clamp(power, 0.4f, 1.8f)});
+}
+
+void Render3D::drawHeatAndFlames() {
+    if (!ok_) return;
+    ensureSceneRt();
+    float tm = (float)GetTime();
+    SetShaderValue(heatSh_, hTime_, &tm, SHADER_UNIFORM_FLOAT);
+    if (heat_) {
+        const Texture2D& st = scene_.texture;
+        const int W = GetScreenWidth(), H = GetScreenHeight();
+        bool any = false;
+        for (auto& p : plumes_) {
+            if (!p.player) continue;
+            const float hl = 5.0f * p.scale * p.unitPx * p.power, hw = 1.6f * p.scale * p.unitPx, r = sqrtf(hl * hl + hw * hw / 4) + 24;
+            int x0 = std::max(0, (int)(p.nozzle.x - r)), x1 = std::min(W, (int)(p.nozzle.x + r) + 1);
+            int y0 = std::max(0, (int)(p.nozzle.y - r)), y1 = std::min(H, (int)(p.nozzle.y + r) + 1);
+            if (x1 <= x0 || y1 <= y0 || st.id == 0) continue;
+            if (!any) { rlDrawRenderBatchActive(); glBindTexture(GL_TEXTURE_2D, st.id); any = true; }
+            const int gy = H - y1;
+            glCopyTexSubImage2D(GL_TEXTURE_2D, 0, x0, gy, x0, gy, x1 - x0, y1 - y0);
+        }
+        if (any) {
+            glBindTexture(GL_TEXTURE_2D, 0);
+            BeginShaderMode(heatSh_);
+            for (auto& p : plumes_) {
+                if (!p.player) continue;
+                float hl = 5.0f * p.scale * p.unitPx * p.power, hw = 1.6f * p.scale * p.unitPx;
+                DrawTexturePro(st, {0, 0, (float)st.width, (float)st.height}, {p.nozzle.x, p.nozzle.y, hl, hw}, {0, hw / 2}, p.angDeg, WHITE);
+            }
+            EndShaderMode();
+        }
+    }
+    drawFlamesOnly();
 }
 
 // ============================================================ damage: dents + breakup
