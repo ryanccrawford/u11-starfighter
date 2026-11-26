@@ -52,7 +52,12 @@ void Cutscene::begin() {
         Actor a; a.id = st.actor; a.a = st.a; a.b = st.b; a.dur = st.duration; a.size = st.amount > 0 ? st.amount : 1;
         a.flip = st.b.x < st.a.x;
         if (a.id == "hero") {
-            heroModel_ = LoadModel(assets_->path("models/player_starfighter.glb").c_str());
+            std::string heroPath = assets_->path("models/player_starfighter.glb");
+#if defined(__aarch64__)
+            const std::string tabletHero = assets_->path("models/player_starfighter_tablet.glb");
+            if (FileExists(tabletHero.c_str())) heroPath = tabletHero;
+#endif
+            heroModel_ = LoadModel(heroPath.c_str());
             heroModelLoaded_ = heroModel_.meshCount > 0;
             if (!heroModelLoaded_) fprintf(stderr, "CUTSCENE missing 3D hero model\n");
         } else if (!st.sprite.empty()) a.sheet = &assets_->sheet(st.sprite, "side_scroller");
@@ -113,7 +118,10 @@ void Cutscene::draw(float W, float H, float s, const Texture2D& glow) const {
             const float aspect = H > 0 ? W / H : 1.f;
             const float worldH = 8.f;
             const Vector3 pos{(p.x / W - 0.5f) * worldH * aspect, (0.5f - p.y / H) * worldH, 0};
-            heroModel_.transform = MatrixMultiply(MatrixMultiply(MatrixRotateY(PI), MatrixScale(0.15f * a.size, 0.15f * a.size, 0.15f * a.size)), MatrixTranslate(pos.x, pos.y, 0));
+            // Match Render3D side-view player scale: shipScale_ 1.8 * kPlayerModelScale 0.15 * kSidePlayerScaleMul 0.85.
+            // a.size still scales the actor (intro uses 1.2) relative to that gameplay size.
+            const float heroS = 1.8f * 0.15f * 0.85f * a.size;
+            heroModel_.transform = MatrixMultiply(MatrixMultiply(MatrixRotateY(PI), MatrixScale(heroS, heroS, heroS)), MatrixTranslate(pos.x, pos.y, 0));
             rlDrawRenderBatchActive();
             BeginMode3D(camera);
             DrawModel(heroModel_, {0, 0, 0}, 1.f, WHITE);

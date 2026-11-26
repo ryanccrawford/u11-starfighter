@@ -743,8 +743,13 @@ void Render3D::init(const char* root) {
     std::string r = root ? root : "assets";
     root_ = r;
     auto path = [&](const char* rel) { return r + "/" + rel; };
-    player_ = LoadModel(path("models/player_starfighter.glb").c_str());
-    playerAnims_ = LoadModelAnimations(path("models/player_starfighter.glb").c_str(), &playerAnimCount_);
+    const std::string playerModelRel =
+#if defined(__aarch64__)
+        FileExists(path("models/player_starfighter_tablet.glb").c_str()) ? "models/player_starfighter_tablet.glb" :
+#endif
+        "models/player_starfighter.glb";
+    player_ = LoadModel(path(playerModelRel.c_str()).c_str());
+    playerAnims_ = LoadModelAnimations(path(playerModelRel.c_str()).c_str(), &playerAnimCount_);
     for (int i = 0; i < playerAnimCount_; ++i) {
         const std::string n = playerAnims_[i].name ? playerAnims_[i].name : "";
         if (n.find("Landing ") == 0 || n.find("Landing_") == 0) playerGearAnims_.push_back(i);
@@ -1393,7 +1398,12 @@ void Render3D::drawApproachScenery(const ApproachScene& a, ApproachOut& out) {
     // from the centre along -a.pdir. A starfield at infinity sits behind it.
     out = {};
     if (!ok_) return;
-    BgModel& pm = bgModel(a.titleScene ? "title_exoplanet_surface_4k.glb" : "nova_planet_surface.glb");
+    const char* titlePlanet = "title_exoplanet_surface_4k.glb";
+#if defined(__aarch64__)
+    if (a.titleScene && FileExists((root_ + "/models/title_exoplanet.glb").c_str()))
+        titlePlanet = "title_exoplanet.glb";
+#endif
+    BgModel& pm = bgModel(a.titleScene ? titlePlanet : "nova_planet_surface.glb");
     if (!pm.ok) return;
     const Vector3 f = Vector3Normalize(a.f), r = Vector3Normalize(Vector3CrossProduct(f, a.u)), u = Vector3CrossProduct(r, f);
     const Vector3 sun = Vector3Normalize(a.sun);
@@ -2764,7 +2774,7 @@ Render3D::BgModel& Render3D::bgModel(const std::string& name) {
     }
     b.m = LoadModel(p.c_str());
     if (b.m.meshCount == 0) return b;
-    if (name == "title_exoplanet_surface_4k.glb") {
+    if (name == "title_exoplanet_surface_4k.glb" || name == "title_exoplanet.glb") {
         for (int materialIndex = 0; materialIndex < b.m.materialCount; ++materialIndex) {
             for (int mapIndex : {MATERIAL_MAP_ALBEDO, MATERIAL_MAP_NORMAL}) {
                 Texture2D& texture = b.m.materials[materialIndex].maps[mapIndex].texture;

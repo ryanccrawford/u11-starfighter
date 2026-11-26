@@ -89,7 +89,7 @@ private:
     int locClipA_ = -1, locClipW_ = -1;
     Model player_{}, chaser_{}; bool playerOk_ = false, chaserOk_ = false;
     float playerScale_ = 1.f, chaserScale_ = 1.f; Vector3 playerC_{}, chaserC_{};
-    Vector3 pWingL_{}, pWingR_{}, pNoz_{}, cWingL_{}, cWingR_{}, cNoz_{};
+    Vector3 pWingL_{}, pWingR_{}, pNoz_{}, pNozL_{}, pNozR_{}, cWingL_{}, cWingR_{}, cNoz_{};
     Vector3 sun_{0.5f, 0.78f, 0.36f};
     Sound sRoar_{}, sWhoosh_{}, sTurret_{}, sChaser_{}, sDrop_{}, sBlast_{}, sCrash_{}, sScrape_{}, sBeep_{};
     bool sndOk_ = false;
@@ -146,7 +146,7 @@ private:
     float bankB_ = 0.f, bankBV_ = 0.f;          // -1 full left wall ride .. +1 full right (eased, critically damped)
     float hBase_ = 15.f, climbD_ = 0.f;          // player-chosen height; extra climb up the wall at full bank
     bool climbArmed_ = true;
-    float halfSpan_ = 4.1f, halfThick_ = 1.5f;   // ship half extents (from the model bounds)
+    float halfSpan_ = 4.1f, halfThick_ = 1.5f;   // ship half extents (player: hull sockets, not bind-pose bbox)
     Vector3 plR_{1, 0, 0}, plU_{0, 1, 0};        // rolled ship right / up (guns, camera)
     // ---- t267: weapons in 3D (plasma lance beam, flamethrower cone, homing missiles)
     struct Missile3 { bool alive = false; Vector3 p{}, v{}; float life = 0, trailT = 0; int tc = -1, tt = -1; };
