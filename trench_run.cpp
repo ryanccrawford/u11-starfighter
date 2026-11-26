@@ -19,6 +19,13 @@
 namespace {
 constexpr float W2 = TrenchRun::kHalfW, DD = TrenchRun::kDepth, SEG = TrenchRun::kSeg;
 constexpr float kSMin = -1600.f, kSLen = 42000.f;
+#if defined(__aarch64__)
+constexpr float kSegDrawBack = 40.f, kSegDrawFwd = 500.f, kSegLodDist = 200.f, kTileReachBase = 400.f;
+constexpr bool kTrenchTablet = true;
+#else
+constexpr float kSegDrawBack = 40.f, kSegDrawFwd = 1500.f, kSegLodDist = 330.f, kTileReachBase = 900.f;
+constexpr bool kTrenchTablet = false;
+#endif
 constexpr float kULim = 8.2f, kYMin = 4.0f, kYMax = DD - 2.6f, kShipR = 2.4f;
 constexpr float kTrenchSpeed = 128.f, kSkimSpeed = 150.f;
 constexpr float kDiveAlt = 430.f;
@@ -201,6 +208,80 @@ void main() {
     vec3 amb = vec3(0.55, 0.58, 0.68) * ambK * (0.55 + 0.45 * max(N.y, 0.0)) * depthK + vec3(1.0, 0.96, 0.9) * bounce;
     vec3 c = alb * (sunC * ndl * sh + amb) * ao + sunC * spec * sh;
     if (flashK > 0.001) {   // explosion light (bomb / fireball)
+        vec3 fd = flashPos - wPos; float fl = length(fd);
+        c += alb * vec3(1.0, 0.55, 0.22) * flashK * max(dot(N, fd / max(fl, 0.01)), 0.0) * 2600.0 / (fl * fl + 900.0);
+    }
+    c += tintK * glowK + dmgE;
+    float d = length(wPos - camPos);
+    c = mix(c, fogCol, 1.0 - exp(-d * fogK));
+    fragColor = vec4(c, 1.0);
+})";
+
+// Tablet / Mali-G57: same sun-lit dark trench, but no textureGrad, cheaper spec, and a coarser wall shadow.
+// Class-2 tile discard is not used on the tablet (those tiles are skipped in drawEnv).
+const char* kFSTablet = R"(#version 330
+in vec3 wPos; in vec3 wN; in vec2 uv; in vec2 uv2; in vec4 col; in vec3 lPos;
+out vec4 fragColor;
+uniform sampler2D texture0; uniform sampler2D texture2; uniform vec4 colDiffuse;
+uniform mat4 trenchInv;
+uniform vec3 sunDir, camPos, fogCol, tintK; uniform float time, fogK, ambK, specK, halfW, depthD, glowK, flashK; uniform int useAtlas;
+uniform vec3 flashPos;
+uniform vec4 dmgSpot[8]; uniform float dmgHeat[8]; uniform int dmgN; uniform vec4 dmgHole[2]; uniform int holeN;
+uniform vec4 clipA; uniform vec2 clipW;
+float hh3(vec3 p) { return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453); }
+void main() {
+    vec3 N = normalize(wN);
+    if (!gl_FrontFacing) N = -N;
+    vec3 alb; float ao = 1.0, em = 0.0;
+    vec3 dmgE = vec3(0.0);
+    if (useAtlas == 1) {
+        float q = floor(uv2.x + 0.5);
+        vec2 qo = vec2(mod(q, 2.0), floor(q / 2.0)) * 0.5;
+        vec2 a = qo + 0.004 + fract(uv) * 0.492;
+        alb = texture(texture0, a).rgb * col.rgb;
+        vec3 nm = texture(texture2, a).xyz * 2.0 - 1.0;
+        N = normalize(N + 0.35 * vec3(nm.x, 0.0, nm.y));
+        ao = col.a; em = uv2.y;
+    } else {
+        vec4 tx = texture(texture0, uv);
+        alb = tx.rgb * colDiffuse.rgb * col.rgb;
+        for (int i = 0; i < 2; i++) {
+            if (i >= holeN) break;
+            float d = length(wPos - dmgHole[i].xyz), rr = dmgHole[i].w * (0.75 + 0.4 * hh3(floor(wPos * 4.0)));
+            if (d < rr) continue;
+            float edge = 1.0 - smoothstep(rr, rr * 1.7, d);
+            alb *= 1.0 - 0.88 * edge;
+            dmgE += vec3(1.0, 0.30, 0.05) * edge * edge * 0.55;
+        }
+        for (int i = 0; i < 8; i++) {
+            if (i >= dmgN) break;
+            float d = length(wPos - dmgSpot[i].xyz), r = dmgSpot[i].w;
+            float k = 1.0 - smoothstep(r * 0.25, r, d);
+            alb *= 1.0 - 0.86 * k;
+            float core = max(0.0, 1.0 - d / (r * 0.42));
+            dmgE += vec3(1.0, 0.32, 0.06) * dmgHeat[i] * core * core;
+        }
+    }
+    if (em > 0.01) {
+        float d = length(wPos - camPos);
+        vec3 e = col.rgb * (1.0 + 0.6 * em);
+        fragColor = vec4(mix(e, fogCol, (1.0 - exp(-d * fogK)) * 0.5), 1.0);
+        return;
+    }
+    vec3 L = normalize(sunDir);
+    float sh = 1.0;
+    vec3 Ll = mat3(trenchInv) * L;
+    bool inside = halfW > 0.0 && abs(lPos.x) < halfW + 0.05 && lPos.y < 0.02 && lPos.y > -depthD - 2.0;
+    if (inside) sh = Ll.y <= 0.02 ? 0.18 : mix(0.40, 1.0, clamp(Ll.y * 2.0, 0.0, 1.0));
+    float ndl = max(dot(N, L), 0.0);
+    vec3 V = normalize(camPos - wPos);
+    vec3 H = normalize(L + V);
+    float spec = pow(max(dot(N, H), 0.0), 16.0) * specK * ndl;
+    vec3 sunC = vec3(1.28, 1.24, 1.16);
+    float depthK = inside ? mix(0.45, 1.0, clamp((lPos.y + depthD) / depthD, 0.0, 1.0)) : 1.0;
+    vec3 amb = vec3(0.55, 0.58, 0.68) * ambK * (0.55 + 0.45 * max(N.y, 0.0)) * depthK;
+    vec3 c = alb * (sunC * ndl * sh + amb) * ao + sunC * spec * sh;
+    if (flashK > 0.001) {
         vec3 fd = flashPos - wPos; float fl = length(fd);
         c += alb * vec3(1.0, 0.55, 0.22) * flashK * max(dot(N, fd / max(fl, 0.01)), 0.0) * 2600.0 / (fl * fl + 900.0);
     }
@@ -519,13 +600,30 @@ void TrenchRun::loadShips() {
         c = Vector3Scale(Vector3Add(bb.min, bb.max), 0.5f);
         const float L = player ? bb.max.x - bb.min.x : bb.max.z - bb.min.z;
         scale = len / std::max(0.01f, L);
-        if (player) { wl = {c.x, c.y, bb.max.z}; wr = {c.x, c.y, bb.min.z}; pNoz_ = {bb.max.x, c.y, c.z};
-                      halfSpan_ = (bb.max.z - bb.min.z) * 0.5f * scale; halfThick_ = (bb.max.y - bb.min.y) * 0.5f * scale; }
-        else { wl = {bb.max.x, c.y, c.z}; wr = {bb.min.x, c.y, c.z}; cNoz_ = {c.x, c.y, bb.min.z}; }
+        if (player) {
+            // player_starfighter.glb basis: nose -X, up +Y, port +Z. Scale/center from the hull
+            // (nose to engine outlets), not the bind-pose bbox which includes plumes / detached parts.
+            constexpr float kHullNoseX = -5.73f, kHullEngineX = 4.27f, kHullHalfY = 1.05f, kWingTipZ = 4.4f;
+            const float hullLen = kHullEngineX - kHullNoseX;
+            scale = len / std::max(0.01f, hullLen);
+            c = {(kHullNoseX + kHullEngineX) * 0.5f, 0.f, 0.f};
+            wl = {1.0f, 0.13f, kWingTipZ};   // wing lamp housings (nav lights)
+            wr = {1.0f, 0.13f, -kWingTipZ};
+            pNozL_ = {kHullEngineX, 0.22f, -0.98f};
+            pNozR_ = {kHullEngineX, 0.22f, 0.98f};
+            pNoz_ = {kHullEngineX, 0.22f, 0.f};
+            halfSpan_ = kWingTipZ * scale;
+            halfThick_ = kHullHalfY * scale;
+        } else { wl = {bb.max.x, c.y, c.z}; wr = {bb.min.x, c.y, c.z}; cNoz_ = {c.x, c.y, bb.min.z}; }
         fprintf(stderr, "TRENCH model %s bb (%.2f %.2f %.2f)-(%.2f %.2f %.2f) scale %.3f meshes %d\n", path, bb.min.x, bb.min.y, bb.min.z, bb.max.x, bb.max.y, bb.max.z, scale, m.meshCount);
         return true;
     };
-    playerOk_ = prep(player_, "assets/models/red_fighter.glb", true, 7.0f, playerScale_, playerC_, pWingL_, pWingR_);
+    const char* playerPath = "assets/models/player_starfighter.glb";
+#if defined(__aarch64__)
+    if (FileExists("assets/models/player_starfighter_tablet.glb"))
+        playerPath = "assets/models/player_starfighter_tablet.glb";
+#endif
+    playerOk_ = prep(player_, playerPath, true, 7.0f, playerScale_, playerC_, pWingL_, pWingR_);
     if (playerOk_) {   // t267: hull points for the damage marks (model space)
         int total = 0; for (int i = 0; i < player_.meshCount; i++) total += player_.meshes[i].vertexCount;
         const int step = std::max(1, total / 1500);
@@ -572,7 +670,11 @@ bool TrenchRun::init() {
     path_.build(kSLen);
     buildPathGrid();
     sun_ = Vector3Normalize({0.50f, 0.78f, 0.36f});
+#if defined(__aarch64__)
+    sh_ = LoadShaderFromMemory(kVS, kFSTablet);
+#else
     sh_ = LoadShaderFromMemory(kVS, kFS);
+#endif
     shOk_ = sh_.id > 0 && sh_.id != rlGetShaderIdDefault();
     if (!shOk_) { fprintf(stderr, "TRENCH shader failed\n"); return false; }
     sh_.locs[SHADER_LOC_MAP_NORMAL] = GetShaderLocation(sh_, "texture2");
@@ -1628,12 +1730,12 @@ void TrenchRun::drawEnv(const Camera3D& c, float t) {
     const int one = 1; SetShaderValue(sh_, locUseAtlas_, &one, SHADER_UNIFORM_INT);
     // trench segments from behind the camera to the draw distance (t275: and under every visible surface tile beside the trench)
     float cu, cy; const float cs = project(c.position, pl_.s, cu, cy);
-    long g0 = (long)floorf((cs - 40.f) / SEG), g1 = (long)floorf((cs + 1500.f) / SEG);
+    long g0 = (long)floorf((cs - kSegDrawBack) / SEG), g1 = (long)floorf((cs + kSegDrawFwd) / SEG);
     struct TileDraw { float x0, z0, dist; int cls, v; long key; };
     static std::vector<TileDraw> tiles; tiles.clear();
     if (cy > DD - 2.f) {   // surface tiles on a world grid (only when the camera is above the rim): classify + cull first
         const Vector3 F = Vector3Normalize(Vector3Subtract(c.target, c.position));
-        const float reach = 900.f + std::max(0.f, cy - DD) * 2.f;
+        const float reach = kTileReachBase + std::max(0.f, cy - DD) * 2.f;
         const int ix0 = (int)floorf((c.position.x - reach) / kTile), ix1 = (int)floorf((c.position.x + reach) / kTile);
         const int iz0 = (int)floorf((c.position.z - reach) / kTile), iz1 = (int)floorf((c.position.z + reach) / kTile);
         int budget = 400;   // new far tiles classified per frame (no hitch when a big area comes into view at once)
@@ -1670,6 +1772,8 @@ void TrenchRun::drawEnv(const Camera3D& c, float t) {
                 }
             } else cls = it->second;
             if (cls == 2) { const TileClip& tc = tileClip_[key]; visMin = std::min(visMin, tc.sMin); visMax = std::max(visMax, tc.sMax); }
+            // Tablet: skip class-2 (beside-the-trench) tiles instead of discard-clipping them in the shader.
+            if (kTrenchTablet && cls == 2) continue;
             const uint32_t h = hash32((uint32_t)(ix * 73856093) ^ (uint32_t)(iz * 19349663));
             const int v = cls == 0 && (h % 3 == 0) ? 3 + (h >> 4) % 3 : (h >> 4) % 3;
             tiles.push_back({x0, z0, dist, cls, v, key});
@@ -1695,7 +1799,7 @@ void TrenchRun::drawEnv(const Camera3D& c, float t) {
         const Matrix M = frame(s0);
         if (g / 8 != lastFrameSeg) { lastFrameSeg = g / 8; setTrenchUniform(s0 + SEG * 4.f); }
         setTrenchUniform(s0 + SEG * 0.5f);
-        const bool lod = fabsf(s0 - cs) > 330.f;
+        const bool lod = fabsf(s0 - cs) > kSegLodDist;
         DrawMesh(lod && V.lod.vertexCount ? V.lod : V.full, matAtlas_, M);
     }
     if (!tiles.empty()) {
@@ -1845,7 +1949,8 @@ void TrenchRun::drawGlows(const Camera3D& c, float t) {
     // ship nav lights + engine glow (player: port red / starboard green)
     if (playerOk_ && deadT_ < 0.f) {
         const Vector3 wl = Vector3Transform(pWingL_, MatrixMultiply(player_.transform, plM_)), wr = Vector3Transform(pWingR_, MatrixMultiply(player_.transform, plM_));
-        const Vector3 nz = Vector3Transform(pNoz_, MatrixMultiply(player_.transform, plM_));
+        const Vector3 nzL = Vector3Transform(pNozL_, MatrixMultiply(player_.transform, plM_));
+        const Vector3 nzR = Vector3Transform(pNozR_, MatrixMultiply(player_.transform, plM_));
         for (int i = 0; i < nSpots_; i++) if (spots_[i].heat > 0.2f) {   // t267: hot damage cores
             const Vector3 w = Vector3Transform(spots_[i].local, MatrixMultiply(player_.transform, plM_));
             bill(soft_, w, 0.5f + 0.5f * spots_[i].heat, Fade(Color{255, 120, 40, 255}, 0.55f * spots_[i].heat * (0.8f + 0.2f * sinf(tm * 17.f + i))));
@@ -1853,7 +1958,11 @@ void TrenchRun::drawGlows(const Camera3D& c, float t) {
         const float bl = sinf(tm * 5.f) > 0 ? 1.f : 0.25f;
         bill(soft_, wl, 0.55f, Fade(Color{255, 40, 30, 255}, bl)); bill(soft_, wr, 0.55f, Fade(Color{40, 255, 80, 255}, bl));
         const float eg = 1.f + std::max(0.f, pl_.v - kTrenchSpeed) / 80.f;
-        bill(soft_, nz, 1.6f * eg, Fade(Color{255, 150, 80, 255}, 0.8f)); bill(soft_, nz, 0.7f * eg, Fade(WHITE, 0.7f));
+        // Twin nozzles: blue-white cores, matching the starfighter's engine outlets.
+        bill(soft_, nzL, 1.35f * eg, Fade(Color{80, 160, 255, 255}, 0.8f));
+        bill(soft_, nzL, 0.6f * eg, Fade(Color{220, 240, 255, 255}, 0.75f));
+        bill(soft_, nzR, 1.35f * eg, Fade(Color{80, 160, 255, 255}, 0.8f));
+        bill(soft_, nzR, 0.6f * eg, Fade(Color{220, 240, 255, 255}, 0.75f));
     }
     for (auto& ch : ch_) if (ch.alive) {
         const Vector3 F = fwd(ch.s);

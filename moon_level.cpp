@@ -653,9 +653,15 @@ void MoonLevel::init(const View& view) {
     if (dustShader_.id > 0) dustShaderLoaded_ = true;
 
     // Ryan's moon model (its own materials stay untouched; we draw its meshes with moonMat_)
-    if (FileExists("assets/moon/moon.glb")) {
-        wholeMoonModel_ = LoadModel("assets/moon/moon.glb");
+    const char* moonPath = "assets/moon/moon.glb";
+#if defined(__aarch64__)
+    if (FileExists("assets/moon/moon_tablet.glb"))
+        moonPath = "assets/moon/moon_tablet.glb";
+#endif
+    if (FileExists(moonPath)) {
+        wholeMoonModel_ = LoadModel(moonPath);
         wholeMoonLoaded_ = (wholeMoonModel_.meshCount > 0);
+        fprintf(stderr, "MOON model %s loaded=%d meshes=%d\n", moonPath, (int)wholeMoonLoaded_, wholeMoonModel_.meshCount);
     }
     if (!wholeMoonLoaded_) {
         wholeMoonModel_ = LoadModelFromMesh(GenMeshSphere(1.0f, 64, 64));
