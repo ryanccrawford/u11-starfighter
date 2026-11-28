@@ -47,6 +47,10 @@ EnemyDef parseEnemy(const json& j, const std::string& id) {
     d.id = j.value("id", id);
     d.presentation.sprite = j.value("sprite", "sprites/blue_racer_pi3_sprites.json");
     d.presentation.model = j.value("model", std::string());
+#ifndef _WIN32
+    if (d.id == "destroyer" && fs::exists("assets/models/enemy_destroyer_tablet.glb"))
+        d.presentation.model = "enemy_destroyer_tablet.glb";
+#endif
     if (j.contains("animations")) d.presentation.animationClips = j.at("animations").get<std::map<std::string, std::string>>();
     d.scale = j.value("scale", 1.0f); d.speed = j.value("speed", 130.0f); d.modelScale = j.value("modelScale", 1.0f);
     d.tint = color(j.value("tint", json()), WHITE);

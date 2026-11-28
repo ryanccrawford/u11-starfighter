@@ -1,0 +1,14 @@
+{
+  "id": "destroyer", "name": "THE DESTROYER",
+  "model": "enemy_destroyer.glb", "engineTint": [90, 170, 255],
+  "scale": 5.0, "modelScale": 1.5, "tint": [255, 255, 255],
+  "hp": 350, "speed": 65, "score": 15000, "boss": true,
+  "movement": { "pattern": "boss", "frequency": 0.65 },
+  "weapon": { "type": "spread", "interval": 1.4, "shots": 7 },
+  "phases": [
+    { "hp": 1.0, "pattern": "boss", "weapon": { "type": "spread", "interval": 1.4, "shots": 7 } },
+    { "hp": 0.66, "pattern": "boss", "weapon": { "type": "spiral", "interval": 0.22, "shots": 2 } },
+    { "hp": 0.33, "pattern": "boss", "weapon": { "type": "sweep", "interval": 0.12, "shots": 1 } }
+  ],
+  "drops": { "chance": 0 }
+}
