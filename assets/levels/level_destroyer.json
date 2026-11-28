@@ -1,0 +1,13 @@
+{
+  "name": "The Destroyer", "mode": "side_scroll", "player": "red_fighter", "boss": "destroyer",
+  "clear_color": [6, 4, 16],
+  "background": [
+    { "type": "stars", "speed": 40, "density": 100 },
+    { "type": "stars", "speed": 120, "density": 24 }
+  ],
+  "waves": [
+    { "time": 1, "enemy": "gunship", "count": 2, "formation": "line", "y": 0.5, "spacing": 180 },
+    { "time": 8, "enemy": "weaver", "count": 5, "formation": "v", "y": 0.5 }
+  ],
+  "difficulty": { "hp": 1.0, "fire_rate": 1.0, "speed": 1.0 }
+}
