@@ -911,11 +911,20 @@ void Game::updateCombatInput() {
         if (CheckCollisionPointCircle(p, fire, r)) { combatInput.primaryHeld = true; combatInput.mouseMovement = false; }
         else if (CheckCollisionPointCircle(p, secondary, r)) { secondaryHeld = true; combatInput.mouseMovement = false; }
         else if (CheckCollisionPointCircle(p, swc, swr)) { switchHeld = true; combatInput.mouseMovement = false; }
+#if !defined(_WIN32)
         else combatInput.movementId = -2;
+#endif
     }
 #endif
     combatInput.primaryHeld = combatInput.primaryHeld || IsKeyDown(KEY_SPACE);
     secondaryHeld = secondaryHeld || IsKeyDown(KEY_LEFT_CONTROL) || IsKeyDown(KEY_RIGHT_CONTROL);
+#if defined(_WIN32)
+    // PC mouse: LMB hold-fires primary, RMB taps secondary. Menus never reach here (Playing only; pause returns before this).
+    if (state == State::Playing && !paused) {
+        combatInput.primaryHeld = combatInput.primaryHeld || IsMouseButtonDown(MOUSE_BUTTON_LEFT);
+        secondaryHeld = secondaryHeld || IsMouseButtonDown(MOUSE_BUTTON_RIGHT);
+    }
+#endif
     combatInput.secondaryPressed = (secondaryHeld && !secondaryWasHeld) || IsKeyPressed(KEY_LEFT_CONTROL) || IsKeyPressed(KEY_RIGHT_CONTROL);
     secondaryWasHeld = secondaryHeld;
     // t219: primary weapon switch (every level; inert until two or more primaries are owned)
@@ -924,6 +933,11 @@ void Game::updateCombatInput() {
         if (touches > 0) showKeyboardHints = false;
         if ((switchHeld && !switchWasHeld) || IsKeyPressed(KEY_E) || IsKeyPressed(KEY_TAB)) cycleWeapon(1);
         if (IsKeyPressed(KEY_Q)) cycleWeapon(-1);
+#if defined(_WIN32)
+        const float wheel = GetMouseWheelMove();   // up = next, down = previous; cycleWeapon wraps owned primaries only
+        if (wheel > 0.f) cycleWeapon(1);
+        else if (wheel < 0.f) cycleWeapon(-1);
+#endif
         if (IsKeyPressed(KEY_ONE)) selectWeapon(kPrimaryLaser, true);
         if (IsKeyPressed(KEY_TWO)) selectWeapon(kPrimaryFlame, true);
         if (IsKeyPressed(KEY_THREE)) selectWeapon(kPrimaryPlasma, true);

@@ -35,7 +35,7 @@ int g_reflections = 2;                 // PC default: high
 #endif
 
 namespace {
-// Free flight: keyboard (screen directions) + touch/mouse drag (ship eases toward finger).
+// Free flight: keyboard (screen directions) + touch drag (and on PC, move-to-pointer mouse steer).
 class FlightController : public Controller {
 public:
     void update(Player& p, float dt, const View& v, const PlayerInput& input) override {
@@ -45,14 +45,42 @@ public:
         if (IsKeyDown(KEY_RIGHT) || IsKeyDown(KEY_D)) dir.x += 1;
         if (IsKeyDown(KEY_UP) || IsKeyDown(KEY_W)) dir.y -= 1;
         if (IsKeyDown(KEY_DOWN) || IsKeyDown(KEY_S)) dir.y += 1;
+        const bool keySteer = dir.x != 0 || dir.y != 0;
+#if defined(_WIN32)
+        // Last device wins: a real mouse move takes over; keys work again once the mouse is idle
+        // and a direction key is pressed. Left click is fire-only (no click-drag steer).
+        if (Vector2Length(GetMouseDelta()) >= 1.f) mouseSteer_ = true;
+        else if (keySteer) mouseSteer_ = false;
+        if (mouseSteer_) dir = {};
+#endif
         const Vector2 keyDirection = v.dirToLocal(Vector2Normalize(dir));
         float forwardIntent = keyDirection.x;
         p.pos = Vector2Add(p.pos, Vector2Scale(keyDirection, speed * dt));
         // Location-independent virtual joystick. Touchdown establishes neutral wherever the
         // thumb lands; holding a displacement applies velocity until the ship reaches a boundary.
+        // PC mouse uses the same deadzone / radius / speed / 85% edge-throttle curve, aimed at the pointer.
         Vector2 stick = dir;   // t260: screen-space stick for the trench run (keys first, the touch joystick below)
+        auto applyStick = [&](Vector2 delta) {
+            const float distance = Vector2Length(delta);
+            const float deadzone = cfg::kTouchJoystickDeadzone * s;
+            const float radius = cfg::kTouchJoystickRadius * s;
+            if (distance > deadzone) {
+                const float strength = Clamp((distance - deadzone) / (radius - deadzone), 0.f, 1.f);
+                const Vector2 n = Vector2Normalize(delta);
+                forwardIntent = n.x * strength;
+                p.pos = Vector2Add(p.pos, Vector2Scale(n, speed * strength * dt));
+                stick = Vector2Add(stick, Vector2Scale(v.dirToScreen(n), strength));
+            }
+        };
+#if defined(_WIN32)
+        const bool down = input.movementPositionValid || input.movementTouch >= 0;
+        if (mouseSteer_) {
+            applyStick(Vector2Subtract(v.toLocal(GetMousePosition()), p.pos));
+        } else
+#else
         const bool down = input.movementPositionValid || input.movementTouch >= 0 ||
                           (input.mouseMovement && IsMouseButtonDown(MOUSE_BUTTON_LEFT));
+#endif
         if (down) {
             const Vector2 screenPosition = input.movementPositionValid ? input.movementPosition :
                 (input.movementTouch >= 0 ? GetTouchPosition(input.movementTouch) : GetMousePosition());
@@ -62,17 +90,7 @@ public:
                 dragId_ = input.movementId;
                 anchorF_ = f;
             } else {
-                const Vector2 delta = Vector2Subtract(f, anchorF_);
-                const float distance = Vector2Length(delta);
-                const float deadzone = cfg::kTouchJoystickDeadzone * s;
-                const float radius = cfg::kTouchJoystickRadius * s;
-                if (distance > deadzone) {
-                    const float strength = Clamp((distance - deadzone) / (radius - deadzone), 0.f, 1.f);
-                    forwardIntent = Vector2Normalize(delta).x * strength;
-                    p.pos = Vector2Add(p.pos, Vector2Scale(Vector2Normalize(delta), speed * strength * dt));
-                    const Vector2 ds = v.dirToScreen(Vector2Normalize(delta));
-                    stick = Vector2Add(stick, Vector2Scale(ds, strength));
-                }
+                applyStick(Vector2Subtract(f, anchorF_));
             }
         } else { dragging_ = false; dragId_ = -1; }
         g_flightStick = {Clamp(stick.x, -1.f, 1.f), Clamp(stick.y, -1.f, 1.f)};
@@ -97,6 +115,7 @@ private:
     float apT_ = 0;
     int dragId_ = -1;
     bool dragging_ = false;
+    bool mouseSteer_ = false;
     Vector2 anchorF_{};
 };
 }  // namespace
