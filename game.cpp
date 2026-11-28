@@ -421,6 +421,9 @@ void Game::loadSave() {
     int shadows = g_groundShadows;
     if (f) f >> shadows;    // optional: Ground Shadows Off/Low/High (after PC display fields)
     if (shadows >= 0 && shadows <= 2) g_groundShadows = shadows;
+    int refl = g_reflections;
+    if (f) f >> refl;       // optional: Reflections Off/Low/High (after shadows; older saves keep the default)
+    if (refl >= 0 && refl <= 2) g_reflections = refl;
     ownedWeapons = (owned & 7u) | 1u;
     if (const char* e = getenv("OWN_WEAPONS")) ownedWeapons |= (unsigned)atoi(e) & 7u;   // test hook (not saved unless something saves)
     weapons.primary = (prim >= 0 && prim < kPrimaryCount && ((ownedWeapons >> prim) & 1u)) ? prim : kPrimaryLaser;
@@ -438,7 +441,7 @@ void Game::writeSave() const {
 #if defined(_WIN32)
     f << ' ' << pcDisplayRequestedAA() << ' ' << (pcDisplayVsync() ? 1 : 0) << ' ' << pcDisplayFpsLimit();
 #endif
-    f << ' ' << g_groundShadows << '\n';   // t260 invert; #43 aa/vsync/cap; ground shadows Off/Low/High
+    f << ' ' << g_groundShadows << ' ' << g_reflections << '\n';   // t260 invert; #43 aa/vsync/cap; shadows; reflections
 }
 
 // ============================================================ flow
@@ -2779,6 +2782,7 @@ std::vector<int> Game::levelOrder() const {
 void Game::draw() {
     tapConsumed = false;
     prof::mark(prof::Clear);
+    r3d.setReflectionQuality(g_reflections);
     BeginDrawing();
 #if defined(_WIN32)
     pcDisplayBeginFrame();

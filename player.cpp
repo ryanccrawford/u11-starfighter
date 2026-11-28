@@ -28,8 +28,10 @@ Vector2 g_flightStick{0.f, 0.f};       // t260 (player.hpp)
 bool g_invertPitch = false;            // t260 (player.hpp)
 #if defined(__aarch64__)
 int g_groundShadows = 0;               // tablet: off (keep >= 30 FPS)
+int g_reflections = 0;                 // tablet: original look (not verified on device)
 #else
 int g_groundShadows = 2;               // PC default: high
+int g_reflections = 2;                 // PC default: high
 #endif
 
 namespace {
