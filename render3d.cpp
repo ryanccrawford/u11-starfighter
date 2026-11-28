@@ -108,6 +108,71 @@ void main(){
   vec3 environment=env*envStrength*(0.12+0.48*metalness+0.40*fresnel);
   o=vec4(base*(1.0-0.22*metalness)+spec+environment,texel.a*opacity);
 })";
+// Player glass + chrome (PC). One sun, no other light: reflections show the starfield, the sun
+// (sharp disc + broad sheen, width follows roughness) and a planet whose lit side faces that sun.
+const char* ENV_VS = R"GLSL(#version 330
+in vec3 vertexPosition; in vec2 vertexTexCoord; in vec3 vertexNormal;
+uniform mat4 mvp; uniform mat4 matModel; uniform mat4 matNormal; uniform float depthBias;
+out vec2 uv; out vec3 nrm; out vec3 worldPos;
+void main(){ uv=vertexTexCoord; worldPos=(matModel*vec4(vertexPosition,1.0)).xyz;
+  nrm=normalize((matNormal*vec4(vertexNormal,0.0)).xyz);
+  gl_Position=mvp*vec4(vertexPosition,1.0);
+  gl_Position.z-=depthBias*gl_Position.w; })GLSL";
+const char* ENV_FS = R"GLSL(#version 330
+in vec2 uv; in vec3 nrm; in vec3 worldPos;
+uniform sampler2D texture0; uniform vec4 colDiffuse; uniform sampler2D envMap;
+uniform vec3 lightDir, eye, planetDir;
+uniform float metalness, roughness, envStrength, polish, useEnv, glass, f0Glass;
+uniform float amb = 0.28;
+out vec4 o;
+const float PI = 3.14159265;
+vec3 planetCol(vec3 d, vec3 toSun) {
+  const float cr = 0.56;
+  float c = dot(d, planetDir);
+  if (c <= cos(cr)) return vec3(0.0);
+  float s = sqrt(max(1.0 - c * c, 0.0)) / sin(cr);
+  vec3 perp = normalize(d - planetDir * c + vec3(1e-5));
+  vec3 pn = normalize(planetDir * sqrt(max(1.0 - s * s, 0.0)) + perp * s);
+  float lit = max(dot(pn, toSun), 0.0);
+  float band = 0.5 + 0.5 * sin(pn.y * 9.0 + sin(pn.x * 5.0) * 1.3);
+  vec3 sfc = mix(vec3(0.07, 0.17, 0.36), vec3(0.50, 0.58, 0.70), 0.35 * band);
+  vec3 atmo = vec3(0.30, 0.55, 1.0) * pow(s, 6.0) * (0.12 + 0.88 * lit);
+  float edge = smoothstep(0.0, 0.03, 1.0 - s);
+  return (sfc * (0.015 + 0.95 * lit) + atmo) * edge;
+}
+vec3 envSample(vec3 d, float r, vec3 toSun) {
+  vec3 col = vec3(0.0);
+  if (useEnv > 0.5) {
+    vec2 euv = vec2(atan(d.z, d.x) / (2.0 * PI) + 0.5, acos(clamp(d.y, -1.0, 1.0)) / PI);
+    col += textureLod(envMap, euv, r * 7.0).rgb * 1.6;
+  }
+  col += planetCol(d, toSun) * mix(1.0, 0.5, r);
+  float sd = max(dot(d, toSun), 0.0);
+  col += vec3(1.0, 0.94, 0.82) * (9.0 * pow(sd, mix(1400.0, 40.0, r)) + 0.9 * pow(sd, mix(60.0, 5.0, r)));
+  return col;
+}
+void main(){
+  vec4 texel = texture(texture0, uv) * colDiffuse;
+  vec3 n = normalize(nrm);
+  if (!gl_FrontFacing) n = -n;
+  vec3 v = normalize(eye - worldPos), toSun = normalize(-lightDir);
+  float ndv = max(dot(n, v), 0.0), ndl = max(dot(n, toSun), 0.0);
+  float r = clamp(roughness * (1.0 - 0.65 * polish), 0.03, 0.95);
+  vec3 rv = reflect(-v, n);
+  float fr = pow(1.0 - ndv, 5.0);
+  if (glass > 0.5) {
+    float F = f0Glass + (1.0 - f0Glass) * fr;
+    vec3 R = envSample(rv, r, toSun) * envStrength;
+    float a0 = texel.a;
+    vec3 c = texel.rgb * a0 * (1.0 - F) * (amb + 0.9 * ndl) + R * F;
+    o = vec4(c, clamp(a0 * (1.0 - F) + F, 0.0, 1.0));   // premultiplied alpha
+  } else {
+    vec3 F0 = mix(vec3(0.04), texel.rgb, metalness);
+    vec3 F = F0 + (1.0 - F0) * fr;
+    vec3 diffuse = texel.rgb * (amb + 0.86 * ndl) * (1.0 - 0.22 * metalness);
+    o = vec4(diffuse + envSample(rv, r, toSun) * F * envStrength, 1.0);
+  }
+})GLSL";
 const char* PICKUP_VS = R"(#version 330
 in vec3 vertexPosition; in vec2 vertexTexCoord; in vec3 vertexNormal;
 uniform mat4 mvp; uniform mat4 matNormal;
@@ -907,6 +972,9 @@ void Render3D::init(const char* root) {
     for (int i : {2, 9}) {
         if (i < player_.materialCount) player_.materials[i].shader = playerGlassSh_;
     }
+#if !defined(__aarch64__)
+    initPlayerEnvLook(L);   // PC only; the tablet keeps the original look untouched
+#endif
     shield_ = LoadModelFromMesh(GenMeshSphere(1.f, 32, 24));
     shieldSh_ = LoadShaderFromMemory(SHIELD_VS, SHIELD_FS);
     shieldSh_.locs[SHADER_LOC_VERTEX_POSITION] = GetShaderLocationAttrib(shieldSh_, "vertexPosition");
@@ -1161,6 +1229,7 @@ void Render3D::shutdown() {
     }
     em_.clear(); emIndex_.clear();
     if (playerAnims_) UnloadModelAnimations(playerAnims_, playerAnimCount_);
+    releasePlayerEnvLook();
     UnloadModel(player_); UnloadModel(shield_);
     if (dentSkinSh_.id > 0) UnloadShader(dentSkinSh_);
     UnloadTexture(flameTex_);
@@ -1377,6 +1446,7 @@ void Render3D::setSceneLight(bool on, Vector3 lightDir, float metalAmb, float te
     sceneLight_ = on;
     Vector3 L = on ? Vector3Normalize(lightDir) : Vector3Normalize(Vector3{-0.4f, -0.8f, -0.45f});
     const float sa = 0.f, ma = on ? metalAmb : 0.28f, ta = on ? terrainAmb : 0.30f;
+    sceneL_ = L; sceneMetalAmb_ = ma;
     for (Shader* sh : {&lit_, &dentSh_, &dentSkinSh_}) if (sh->id > 0) {
         SetShaderValue(*sh, GetShaderLocation(*sh, "lightDir"), &L, SHADER_UNIFORM_VEC3);
         SetShaderValue(*sh, GetShaderLocation(*sh, "amb"), &sa, SHADER_UNIFORM_FLOAT);
@@ -1631,7 +1701,7 @@ void Render3D::drawApproachScenery(const ApproachScene& a, ApproachOut& out) {
             SetShaderValue(playerGlassSh_, glassEnvStrength_, &glassEnv, SHADER_UNIFORM_FLOAT);
             SetShaderValue(playerGlassSh_, glassOpacity_, &opaque, SHADER_UNIFORM_FLOAT);
             player_.transform = M;
-            DrawModel(player_, {0, 0, 0}, 1.f, WHITE);
+            drawPlayerModel(WHITE, c.position);
             player_.transform = keep;
             for (int i = 0; i < 2; i++) out.titleNoz[i] = GetWorldToScreenEx(Vector3Transform(nozzleModel(i), M), c, SW, SH);
             const Vector2 tail = GetWorldToScreenEx(Vector3Transform(Vector3Add(nozzleModel(0), {0.5f, 0, 0}), M), c, SW, SH);
@@ -2035,6 +2105,178 @@ void Render3D::endPickupBatch() {
     pickupBatch_ = false;
 }
 
+// ------------------------------------------------------------------------------------------
+// Player glass + chrome. GLB materials (player_starfighter.glb): 3 Polished engine chrome,
+// 7 Bronze trim, 23 Pedal aluminum, 32 Anodized hydraulic titanium (metals; Titanium edges 2 and
+// Graphite composite 1 keep their original shaders so the hull colour is unchanged),
+// 9 Headlight optical glass (opaque lens), 12 Canopy glass crystal + 13 HUD hologram (alpha BLEND).
+static constexpr int kPlayerAlloyMats[] = {7, 23, 32};
+static constexpr int kPlayerEnvMats[] = {3, 7, 9, 12, 13, 23, 32};
+
+static Texture2D genStarEnvTexture(int W, int H) {
+    Image img = GenImageColor(W, H, BLACK);
+    Color* px = (Color*)img.data;
+    uint32_t s = 0x9E3779B9u;
+    auto rnd = [&]() { s ^= s << 13; s ^= s >> 17; s ^= s << 5; return (s & 0xFFFFFF) / 16777216.f; };
+    // very faint violet-blue nebula: low-frequency value noise, kept near black (space stays dark)
+    for (int y = 0; y < H; y++) for (int x = 0; x < W; x++) {
+        const float u = x / (float)W * 6.2831853f, v = y / (float)H * 3.14159265f;
+        const float n = 0.5f + 0.25f * sinf(u * 2.f + 1.3f * sinf(v * 3.f)) + 0.25f * sinf(u * 5.f - v * 4.f + 2.f);
+        const float k = 0.035f * n * n * sinf(v);
+        px[y * W + x] = {(unsigned char)(255.f * k * 0.9f), (unsigned char)(255.f * k * 0.7f), (unsigned char)(255.f * k * 1.5f), 255};
+    }
+    const int stars = W * H / 120;
+    for (int i = 0; i < stars; i++) {
+        const float u = rnd(), v = acosf(1.f - 2.f * rnd()) / 3.14159265f;
+        const float b = 0.18f + 0.82f * powf(rnd(), 5.f), t = rnd();
+        const float cr = t < 0.3f ? 0.75f : t < 0.8f ? 1.f : 1.f, cb = t < 0.3f ? 1.f : t < 0.8f ? 0.92f : 0.7f, cg = 0.9f;
+        const int x = std::min(W - 1, (int)(u * W)), y = std::min(H - 1, (int)(v * H));
+        auto put = [&](int xx, int yy, float k) {
+            xx = (xx + W) % W; yy = std::clamp(yy, 0, H - 1);
+            Color& p = px[yy * W + xx];
+            p.r = (unsigned char)std::min(255.f, p.r + 255.f * b * cr * k);
+            p.g = (unsigned char)std::min(255.f, p.g + 255.f * b * cg * k);
+            p.b = (unsigned char)std::min(255.f, p.b + 255.f * b * cb * k);
+        };
+        put(x, y, 1.f);
+        if (b > 0.7f) { put(x + 1, y, 0.5f); put(x - 1, y, 0.5f); put(x, y + 1, 0.5f); put(x, y - 1, 0.5f); }
+    }
+    Texture2D t = LoadTextureFromImage(img);
+    UnloadImage(img);
+    GenTextureMipmaps(&t);
+    SetTextureFilter(t, TEXTURE_FILTER_TRILINEAR);
+    SetTextureWrap(t, TEXTURE_WRAP_REPEAT);
+    return t;
+}
+
+void Render3D::initPlayerEnvLook(const Vector3& L) {
+    sceneL_ = L;
+    if (player_.materialCount < 33 || player_.meshCount <= 0) return;   // different GLB: leave the original look
+    const Vector3 planetDir = Vector3Normalize(Vector3{-0.62f, 0.55f, 0.35f});
+    auto mk = [&](EnvLook& e, float metal, float rough, float envS, float glass, float f0, float bias) {
+        e.sh = LoadShaderFromMemory(ENV_VS, ENV_FS);
+        if (e.sh.id == 0 || e.sh.id == rlGetShaderIdDefault()) return false;
+        e.sh.locs[SHADER_LOC_VERTEX_POSITION] = GetShaderLocationAttrib(e.sh, "vertexPosition");
+        e.sh.locs[SHADER_LOC_VERTEX_TEXCOORD01] = GetShaderLocationAttrib(e.sh, "vertexTexCoord");
+        e.sh.locs[SHADER_LOC_VERTEX_NORMAL] = GetShaderLocationAttrib(e.sh, "vertexNormal");
+        e.sh.locs[SHADER_LOC_MATRIX_MVP] = GetShaderLocation(e.sh, "mvp");
+        e.sh.locs[SHADER_LOC_MATRIX_MODEL] = GetShaderLocation(e.sh, "matModel");
+        e.sh.locs[SHADER_LOC_MATRIX_NORMAL] = GetShaderLocation(e.sh, "matNormal");
+        e.sh.locs[SHADER_LOC_COLOR_DIFFUSE] = GetShaderLocation(e.sh, "colDiffuse");
+        e.sh.locs[SHADER_LOC_MAP_DIFFUSE] = GetShaderLocation(e.sh, "texture0");
+        e.sh.locs[SHADER_LOC_MAP_HEIGHT] = GetShaderLocation(e.sh, "envMap");   // bound through material map HEIGHT
+        e.eye = GetShaderLocation(e.sh, "eye"); e.lightDir = GetShaderLocation(e.sh, "lightDir");
+        e.amb = GetShaderLocation(e.sh, "amb"); e.useEnv = GetShaderLocation(e.sh, "useEnv"); e.polish = GetShaderLocation(e.sh, "polish");
+        SetShaderValue(e.sh, GetShaderLocation(e.sh, "metalness"), &metal, SHADER_UNIFORM_FLOAT);
+        SetShaderValue(e.sh, GetShaderLocation(e.sh, "roughness"), &rough, SHADER_UNIFORM_FLOAT);
+        SetShaderValue(e.sh, GetShaderLocation(e.sh, "envStrength"), &envS, SHADER_UNIFORM_FLOAT);
+        SetShaderValue(e.sh, GetShaderLocation(e.sh, "glass"), &glass, SHADER_UNIFORM_FLOAT);
+        SetShaderValue(e.sh, GetShaderLocation(e.sh, "f0Glass"), &f0, SHADER_UNIFORM_FLOAT);
+        SetShaderValue(e.sh, GetShaderLocation(e.sh, "depthBias"), &bias, SHADER_UNIFORM_FLOAT);
+        SetShaderValue(e.sh, GetShaderLocation(e.sh, "planetDir"), &planetDir, SHADER_UNIFORM_VEC3);
+        SetShaderValue(e.sh, e.lightDir, &L, SHADER_UNIFORM_VEC3);
+        return true;
+    };
+    float glassBias = 3e-6f;
+    if (const char* b = getenv("GLASS_BIAS")) glassBias = (float)atof(b);
+    const bool ok = mk(envChrome_, 1.0f, 0.105f, 1.0f, 0.f, 0.04f, 0.f) &&
+                    mk(envAlloy_, 0.9f, 0.30f, 0.6f, 0.f, 0.04f, 0.f) &&
+                    mk(envLens_, 0.05f, 0.07f, 1.4f, 0.f, 0.04f, 0.f) &&
+                    mk(envCanopy_, 0.f, 0.04f, 1.5f, 1.f, 0.06f, glassBias);
+    if (!ok) { releasePlayerEnvLook(); fprintf(stderr, "R3D player glass/chrome shaders unavailable, original look kept\n"); return; }
+    playerGlassMat_.assign(player_.materialCount, 0);
+    playerGlassMat_[12] = 1; playerGlassMat_[13] = 1;
+    playerGlassMesh_.clear(); playerGlassCenter_.clear();
+    for (int i = 0; i < player_.meshCount; i++) {
+        const int mat = player_.meshMaterial ? player_.meshMaterial[i] : 0;
+        if (mat < 0 || mat >= player_.materialCount || !playerGlassMat_[mat]) continue;
+        const Mesh& me = player_.meshes[i];
+        Vector3 lo{1e9f, 1e9f, 1e9f}, hi{-1e9f, -1e9f, -1e9f};
+        for (int v = 0; me.vertices && v < me.vertexCount; v++) {
+            const Vector3 p{me.vertices[v * 3], me.vertices[v * 3 + 1], me.vertices[v * 3 + 2]};
+            lo = Vector3Min(lo, p); hi = Vector3Max(hi, p);
+        }
+        playerGlassMesh_.push_back(i);
+        playerGlassCenter_.push_back(Vector3Scale(Vector3Add(lo, hi), 0.5f));
+    }
+    envReady_ = true;
+    fprintf(stderr, "R3D player glass/chrome ready: %zu transparent meshes\n", playerGlassMesh_.size());
+}
+
+void Render3D::releasePlayerEnvLook() {
+    if (player_.materials) for (int i = 0; i < player_.materialCount; i++) player_.materials[i].maps[MATERIAL_MAP_HEIGHT].texture = Texture2D{};
+    for (EnvLook* e : {&envChrome_, &envAlloy_, &envLens_, &envCanopy_}) {
+        if (e->sh.id > 0 && e->sh.id != rlGetShaderIdDefault()) UnloadShader(e->sh);
+        *e = EnvLook{};
+    }
+    if (envTex_.id > 0) UnloadTexture(envTex_);
+    envTex_ = Texture2D{};
+    envReady_ = false;
+}
+
+void Render3D::applyPlayerLook() {
+    const int want = envReady_ ? std::clamp(reflQuality_, 0, 2) : 0;
+    if (want == playerLook_) return;
+    playerLook_ = want;
+    // original assignment first (identical to init), then the env look on top
+    for (int i = 0; i < player_.materialCount; i++) player_.materials[i].shader = lit_;
+    for (int i : {1, 7}) if (i < player_.materialCount) player_.materials[i].shader = metal_;
+    if (player_.materialCount > 3) player_.materials[3].shader = playerChromeSh_;
+    for (int i : {2, 9}) if (i < player_.materialCount) player_.materials[i].shader = playerGlassSh_;
+    for (int i : kPlayerEnvMats) player_.materials[i].maps[MATERIAL_MAP_HEIGHT].texture = Texture2D{};
+    if (want == 0) return;
+    if (want == 2 && envTex_.id == 0) envTex_ = genStarEnvTexture(1024, 512);
+    player_.materials[3].shader = envChrome_.sh;
+    for (int i : kPlayerAlloyMats) player_.materials[i].shader = envAlloy_.sh;
+    player_.materials[9].shader = envLens_.sh;
+    player_.materials[12].shader = envCanopy_.sh;
+    player_.materials[13].shader = envCanopy_.sh;
+    if (want == 2) for (int i : kPlayerEnvMats) player_.materials[i].maps[MATERIAL_MAP_HEIGHT].texture = envTex_;
+}
+
+void Render3D::drawPlayerModel(Color tint, const Vector3& eye) {
+    applyPlayerLook();
+    if (playerLook_ == 0) { DrawModel(player_, {0, 0, 0}, 1.f, tint); return; }
+    const Vector3 Ld = sceneL_;
+    const float useEnv = playerLook_ >= 2 ? 1.f : 0.f, glassAmb = 0.03f;
+    for (EnvLook* e : {&envChrome_, &envAlloy_, &envLens_, &envCanopy_}) {
+        SetShaderValue(e->sh, e->eye, &eye, SHADER_UNIFORM_VEC3);
+        SetShaderValue(e->sh, e->lightDir, &Ld, SHADER_UNIFORM_VEC3);
+        SetShaderValue(e->sh, e->useEnv, &useEnv, SHADER_UNIFORM_FLOAT);
+        SetShaderValue(e->sh, e->amb, e == &envCanopy_ ? &glassAmb : &sceneMetalAmb_, SHADER_UNIFORM_FLOAT);
+    }
+    SetShaderValue(envChrome_.sh, envChrome_.polish, &chromePolish_, SHADER_UNIFORM_FLOAT);
+    Model& m = player_;
+    auto drawMeshTinted = [&](int i) {
+        Material& mat = m.materials[m.meshMaterial[i]];
+        const Color orig = mat.maps[MATERIAL_MAP_DIFFUSE].color;
+        mat.maps[MATERIAL_MAP_DIFFUSE].color = {(unsigned char)(orig.r * tint.r / 255), (unsigned char)(orig.g * tint.g / 255),
+                                                (unsigned char)(orig.b * tint.b / 255), (unsigned char)(orig.a * tint.a / 255)};
+        DrawMesh(m.meshes[i], mat, m.transform);
+        mat.maps[MATERIAL_MAP_DIFFUSE].color = orig;
+    };
+    for (int i = 0; i < m.meshCount; i++) {
+        const int mat = m.meshMaterial ? m.meshMaterial[i] : 0;
+        if (mat >= 0 && mat < (int)playerGlassMat_.size() && playerGlassMat_[mat]) continue;   // transparent: last
+        drawMeshTinted(i);
+    }
+    if (playerGlassMesh_.empty()) return;
+    // transparent meshes last, farthest first, no depth writes: the cockpit shows through the glass
+    std::vector<std::pair<float, int>> order;
+    order.reserve(playerGlassMesh_.size());
+    for (size_t k = 0; k < playerGlassMesh_.size(); k++) {
+        const Vector3 w = Vector3Transform(playerGlassCenter_[k], m.transform);
+        order.push_back({Vector3DistanceSqr(w, eye), playerGlassMesh_[k]});
+    }
+    std::sort(order.begin(), order.end(), [](const auto& a, const auto& b) { return a.first > b.first; });
+    BeginBlendMode(BLEND_ALPHA_PREMULTIPLY);
+    rlDisableDepthMask();
+    for (const auto& o : order) drawMeshTinted(o.second);
+    rlDrawRenderBatchActive();
+    rlEnableDepthMask();
+    EndBlendMode();
+}
+
 void Render3D::drawShip(Vector2 local, float sizePx, bool facingBack, float pitch, float roll,
                         Color tint, bool player, float flamePower, const float (*dent)[4], int nDent,
                         const EnemyAnim* anim, Color flameTint, float depth, float weaponHeat,
@@ -2080,7 +2322,10 @@ void Render3D::drawShip(Vector2 local, float sizePx, bool facingBack, float pitc
         SetShaderValue(playerGlassSh_, glassEnvStrength_, &glassEnv, SHADER_UNIFORM_FLOAT);
         SetShaderValue(playerGlassSh_, glassOpacity_, &opacity, SHADER_UNIFORM_FLOAT);
     }
-    if (!(player && hidePlayer_)) DrawModel(m, {0, 0, 0}, 1.0f, tint);
+    if (!(player && hidePlayer_)) {
+        if (player) drawPlayerModel(tint, renderCamera().position);
+        else DrawModel(m, {0, 0, 0}, 1.0f, tint);
+    }
     if (!inShips_) EndMode3D();
 
     auto Xform = [&](Vector3 p) { return Vector3Transform(p, M); };

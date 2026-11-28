@@ -95,6 +95,15 @@ void Game::drawOptions() {
             writeSave();
         }
     }
+#if defined(_WIN32)
+    {
+        const char* rName = g_reflections >= 2 ? "HIGH" : g_reflections == 1 ? "LOW" : "OFF";
+        if (b({bx, nextY(), bw, bh}, TextFormat("REFLECTIONS: %s", rName))) {
+            g_reflections = (g_reflections + 1) % 3;
+            writeSave();
+        }
+    }
+#endif
     // t260: invert up/down (trench run pitch; X flips it in-game). OPTIONS_TOGGLE / OPTIONS_SHOT: hidden test hooks
     static int optFrames = 0; optFrames++;
     const bool testToggle = getenv("OPTIONS_TOGGLE") && optFrames == 20;

@@ -151,6 +151,10 @@ public:
     const Texture2D& nebulaTexture() const { return nebTex_; }
     // Level 6: ships / enemies / terrain lit by the same sun (gameplay-world light travel direction).
     void setSceneLight(bool on, Vector3 lightDir = {0, 0, 0}, float metalAmb = 0.28f, float terrainAmb = 0.30f);
+    // Player glass + chrome: 0 = original look, 1 = low (transparent Fresnel canopy, sun/planet reflections),
+    // 2 = high (adds the generated starfield environment map with roughness-blurred reflections). PC only.
+    void setReflectionQuality(int q) { reflQuality_ = q; }
+    void setChromePolish(float p) { chromePolish_ = p; }   // 0 = satin .. 1 = mirror
     // Level 6 chase / orbit camera: DRAWS ships, flames, shields and terrain from this camera while
     // every world position (toWorld, muzzles, hull contacts) still comes from the gameplay camera.
     void setRenderCamera(bool on, const Camera3D& c = Camera3D{}) { rcamOn_ = on; if (on) rcam_ = c; }
@@ -230,6 +234,24 @@ private:
     Vector3 sceneToSun_{-0.45f, 0.8f, 0.35f}; float sceneTerrainAmb_ = 0.30f;
     std::vector<PlanetRenderer::CraftCaster> craftShadows_;
     int groundShadowQuality_ = 0;
+    // ---- player glass / chrome (PC): environment-mapped metal + sorted transparent canopy ----
+    struct EnvLook {
+        Shader sh{};
+        int eye = -1, lightDir = -1, amb = -1, useEnv = -1, polish = -1;
+    };
+    EnvLook envChrome_, envAlloy_, envLens_, envCanopy_;
+    Texture2D envTex_{};
+    bool envReady_ = false;
+    int reflQuality_ = 0, playerLook_ = 0;
+    float chromePolish_ = 0.7f;
+    Vector3 sceneL_{-0.4f, -0.8f, -0.45f}; float sceneMetalAmb_ = 0.28f;
+    std::vector<char> playerGlassMat_;               // per material: drawn in the transparent pass
+    std::vector<int> playerGlassMesh_;               // transparent meshes
+    std::vector<Vector3> playerGlassCenter_;         // their model-space centres (back-to-front sort)
+    void initPlayerEnvLook(const Vector3& L);
+    void releasePlayerEnvLook();
+    void applyPlayerLook();
+    void drawPlayerModel(Color tint, const Vector3& eye);
     void drawPlanet(const Background::Bg3D& it, float halfH, float visHalfW, float pxPerUnit);
     void drawGroundGuns(const Matrix& layer, float scroll);
     bool sceneLight_ = false;
