@@ -1631,15 +1631,21 @@ void Render3D::drawApproachScenery(const ApproachScene& a, ApproachOut& out) {
             const Vector2 nose = GetWorldToScreenEx(Vector3Transform({bb.min.x, 0, 0}, M), c, SW, SH);
             const Vector2 aft = GetWorldToScreenEx(Vector3Transform({bb.max.x, 0, 0}, M), c, SW, SH);
             out.titleShipPx = fmaxf(Vector2Distance(nose, aft), a.titleShipW * SH * 0.5f);
-            // Queue the same animated blue-white + heat-mirage plumes used in gameplay,
-            // sized in pixels-per-world-unit so they sit in the two engine nozzles.
+            // Queue the same animated blue-white + heat-mirage plumes used in gameplay.
+            // The title fighter sits only ~0.3 world units in front of the camera, so a
+            // 1-world-unit aft sample (gameplay's unitPx probe) can land behind the
+            // camera and flip the screen-space exhaust angle. Step a short distance
+            // along model +X (aft) instead, then convert to pixels-per-world-unit.
             plumes_.clear();
-            if (S > 1e-5f) {
-                const Vector3 aftWorld = {1.f / S, 0.f, 0.f};
+            {
+                const Vector3 n0w = Vector3Transform(nozzleModel(0), M);
+                const Vector3 aftDir = Vector3Normalize(Vector3Subtract(
+                    Vector3Transform(Vector3Add(nozzleModel(0), {1.f, 0.f, 0.f}), M), n0w));
+                const float step = 0.02f;   // well short of the title camera
                 Vector2 n0 = out.titleNoz[0];
                 Vector2 n1 = out.titleNoz[1];
-                Vector2 n0b = GetWorldToScreenEx(Vector3Transform(Vector3Add(nozzleModel(0), aftWorld), M), c, SW, SH);
-                const float unitPx = fmaxf(1.f, Vector2Distance(n0, n0b));
+                Vector2 n0b = GetWorldToScreenEx(Vector3Add(n0w, Vector3Scale(aftDir, step)), c, SW, SH);
+                const float unitPx = fmaxf(1.f, Vector2Distance(n0, n0b) / step);
                 const float angDeg = atan2f(n0b.y - n0.y, n0b.x - n0.x) * RAD2DEG;
                 plumes_.push_back({n0, angDeg, unitPx, S, true, {0, 0, 0, 0}, 1.f});
                 plumes_.push_back({n1, angDeg, unitPx, S, true, {0, 0, 0, 0}, 1.f});
