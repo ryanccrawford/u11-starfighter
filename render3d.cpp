@@ -3550,6 +3550,15 @@ void Render3D::warmPlanet(const std::string& model, float x0, float x1, float z0
     fprintf(stderr, "PLANET warm covered=%d in %.2fs\n", (int)planet_->covered(x0, x1, z0, z1), GetTime() - t0);
 }
 
+void Render3D::addGroundShadowCaster(Vector2 local, float sizePx, float depth) {
+    if (!ok_ || groundShadowQuality_ <= 0) return;
+    PlanetRenderer::CraftCaster c;
+    c.world = toWorld(local, depth);
+    const float wpl = CameraSystem::worldPerLocal(view_);
+    c.radius = fmaxf(0.12f, 0.28f * sizePx * wpl);
+    craftShadows_.push_back(c);
+}
+
 void Render3D::drawPlanet(const Background::Bg3D& it, float halfH, float visHalfW, float pxPerUnit) {
     if (!planet_ || !planet_->ready()) return;
     const float S = it.offset / pxPerUnit, base = kGroundBase, C = planet_->params().chunkSize;
@@ -3567,6 +3576,8 @@ void Render3D::drawPlanet(const Background::Bg3D& it, float halfH, float visHalf
     planet_->request(x0, x1, Z0 - S - C, Z1 - S);   // + one row ahead of the scroll
     planet_->pump(planet_->covered(x0, x1, Z0 - S, Z1 - S) ? 3 : 64);
     planet_->draw(layer, base, S, x0, x1, Z0 - S, Z1 - S, renderCamera().position, planetPropFar_);
+    if (groundShadowQuality_ > 0 && !craftShadows_.empty())
+        planet_->drawCraftShadows(layer, base, S, sceneToSun_, craftShadows_.data(), (int)craftShadows_.size(), groundShadowQuality_);
     const PlanetRenderer::Stats& st = planet_->stats;
     bgTris_ += st.terrainTris + st.propTris + st.shadowQuads * 2;
     if (groundDrop_ <= 0.f) drawGroundGuns(layer, S);

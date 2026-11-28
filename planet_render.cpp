@@ -73,6 +73,18 @@ void main(){
 const char* PT_SHADOW_FS = R"(#version 330
 in vec2 q; in float fade; out vec4 o;
 void main(){ float d = length(q); float a = (1.0 - smoothstep(0.35, 1.0, d)) * 0.45 * fade; o = vec4(0.05, 0.02, 0.12, a); })";
+// Craft shadows: vertices already lie on the terrain; uv is the unit-ellipse coordinate.
+const char* PT_CRAFT_SHADOW_VS = R"(#version 330
+in vec3 vertexPosition; in vec2 vertexTexCoord; in vec4 vertexColor;
+uniform mat4 mvp; out vec2 q; out float fade;
+void main(){ q = vertexTexCoord; fade = vertexColor.a; gl_Position = mvp * vec4(vertexPosition, 1.0); })";
+const char* PT_CRAFT_SHADOW_FS = R"(#version 330
+in vec2 q; in float fade; uniform float softness; out vec4 o;
+void main(){
+  float d = length(q);
+  float a = (1.0 - smoothstep(clamp(softness, 0.05, 0.8), 1.0, d)) * fade;
+  o = vec4(0.05, 0.02, 0.12, a);
+})";
 
 void setAttribLocs(Shader& s) {
     s.locs[SHADER_LOC_VERTEX_POSITION] = GetShaderLocationAttrib(s, "vertexPosition");
@@ -120,8 +132,9 @@ bool PlanetRenderer::init(const planet::Params& p, int workers) {
     terrainSh_ = LoadShaderFromMemory(PT_TERRAIN_VS, PT_TERRAIN_FS);
     propSh_ = LoadShaderFromMemory(PT_PROP_VS, PT_PROP_FS);
     shadowSh_ = LoadShaderFromMemory(PT_SHADOW_VS, PT_SHADOW_FS);
-    if (terrainSh_.id == 0 || propSh_.id == 0 || shadowSh_.id == 0) return false;
-    for (Shader* s : {&terrainSh_, &propSh_, &shadowSh_}) setAttribLocs(*s);
+    craftShadowSh_ = LoadShaderFromMemory(PT_CRAFT_SHADOW_VS, PT_CRAFT_SHADOW_FS);
+    if (terrainSh_.id == 0 || propSh_.id == 0 || shadowSh_.id == 0 || craftShadowSh_.id == 0) return false;
+    for (Shader* s : {&terrainSh_, &propSh_, &shadowSh_, &craftShadowSh_}) setAttribLocs(*s);
     terrainSh_.locs[SHADER_LOC_MAP_DIFFUSE] = GetShaderLocation(terrainSh_, "texture0");
     terrainSh_.locs[SHADER_LOC_MAP_SPECULAR] = GetShaderLocation(terrainSh_, "texture1");
     terrainSh_.locs[SHADER_LOC_MAP_NORMAL] = GetShaderLocation(terrainSh_, "texture2");
@@ -129,11 +142,13 @@ bool PlanetRenderer::init(const planet::Params& p, int workers) {
     tLocSun_ = GetShaderLocation(terrainSh_, "sunL"); tLocAmb_ = GetShaderLocation(terrainSh_, "amb");
     pLocSun_ = GetShaderLocation(propSh_, "sunL"); pLocAmb_ = GetShaderLocation(propSh_, "amb");
     sLocSun_ = GetShaderLocation(shadowSh_, "sunL");
+    csLocSoft_ = GetShaderLocation(craftShadowSh_, "softness");
     detail_ = makeDetail();
     terrainMat_ = LoadMaterialDefault(); terrainMat_.shader = terrainSh_;
     terrainMat_.maps[MATERIAL_MAP_NORMAL].texture = detail_;
     propMat_ = LoadMaterialDefault(); propMat_.shader = propSh_;
     shadowMat_ = LoadMaterialDefault(); shadowMat_.shader = shadowSh_;
+    craftShadowMat_ = LoadMaterialDefault(); craftShadowMat_.shader = craftShadowSh_;
     setLight({-0.45f, 0.8f, 0.35f}, 0.2f);
     quit_ = false;
     for (int i = 0; i < std::max(1, workers); i++) threads_.emplace_back([this] { worker(); });
@@ -155,9 +170,9 @@ void PlanetRenderer::shutdown() {
     for (auto& tp : texPool_) { UnloadTexture(tp.first); UnloadTexture(tp.second); }
     texPool_.clear();
     UnloadTexture(detail_);
-    UnloadShader(terrainSh_); UnloadShader(propSh_); UnloadShader(shadowSh_);
+    UnloadShader(terrainSh_); UnloadShader(propSh_); UnloadShader(shadowSh_); UnloadShader(craftShadowSh_);
     // materials share the shaders / textures released above: only their map arrays are owned
-    MemFree(terrainMat_.maps); MemFree(propMat_.maps); MemFree(shadowMat_.maps);
+    MemFree(terrainMat_.maps); MemFree(propMat_.maps); MemFree(shadowMat_.maps); MemFree(craftShadowMat_.maps);
     inited_ = false;
 }
 
@@ -336,4 +351,97 @@ void PlanetRenderer::draw(const Matrix& layer, float base, float scroll, float x
         stats.propTris += g.propTris; stats.draws++;
     }
     rlDrawRenderBatchActive();
+}
+
+void PlanetRenderer::drawCraftShadows(const Matrix& layer, float base, float scroll, Vector3 toSun,
+                                      const CraftCaster* casters, int count, int quality) {
+    if (!inited_ || !casters || count <= 0 || quality < 1 || craftShadowSh_.id == 0) return;
+    const Vector3 L = Vector3Normalize(toSun);
+    const float sunFade = Clamp((L.y + 0.02f) / 0.22f, 0.f, 1.f);
+    if (sunFade <= 0.01f) return;
+    const Matrix inv = MatrixInvert(layer);
+    const int N = (quality >= 2) ? 8 : 2;                 // verts per side
+    const float softness = (quality >= 2) ? 0.18f : 0.38f;
+    const float maxA = (quality >= 2) ? 0.55f : 0.38f;
+    std::vector<float> vtx, uv;
+    std::vector<unsigned char> col;
+    std::vector<unsigned short> idx;
+    vtx.reserve((size_t)count * N * N * 3);
+    uv.reserve((size_t)count * N * N * 2);
+    col.reserve((size_t)count * N * N * 4);
+    idx.reserve((size_t)count * (N - 1) * (N - 1) * 6);
+
+    const float hl = sqrtf(L.x * L.x + L.z * L.z);
+    const float upL = fmaxf(L.y, 0.12f);
+    const Vector2 dir = hl > 1e-4f ? Vector2{-L.x / hl, -L.z / hl} : Vector2{1.f, 0.f};
+    const Vector2 perp{-dir.y, dir.x};
+
+    for (int ci = 0; ci < count; ci++) {
+        const Vector3 g = Vector3Transform(casters[ci].world, inv);
+        const float radius = fmaxf(0.08f, casters[ci].radius);
+        // First guess: drop straight down, then walk the sun ray onto the surface.
+        float tx = g.x, tz = g.z;
+        float hy = base + planet::surface(p_, tx, tz - scroll);
+        float alt = g.y - hy;
+        if (alt < -2.f) continue;   // well below the mesh (off the terrain / wrong space)
+        for (int it = 0; it < 6; it++) {
+            hy = base + planet::surface(p_, tx, tz - scroll);
+            const float dy = g.y - hy;
+            const float t = dy / upL;
+            const float nx = g.x - L.x * t, nz = g.z - L.z * t;
+            if (fabsf(nx - tx) + fabsf(nz - tz) < 0.01f) { tx = nx; tz = nz; break; }
+            tx = nx; tz = nz;
+        }
+        hy = base + planet::surface(p_, tx, tz - scroll);
+        alt = fmaxf(0.f, g.y - hy);
+        const float len = fminf(alt * hl / upL, alt * 3.5f);
+        const float grow = 1.f + 0.45f * fminf(alt / 28.f, 1.f);
+        const float r = radius * grow;
+        const float fade = maxA * sunFade * (1.f - Clamp((alt - 10.f) / 30.f, 0.f, 1.f));
+        if (fade < 0.02f) continue;
+        const Vector2 c{tx + dir.x * len * 0.5f, tz + dir.y * len * 0.5f};
+        const float ext = r + len * 0.5f;
+        const unsigned short baseV = (unsigned short)(vtx.size() / 3);
+        if ((int)baseV + N * N >= 65535) break;
+        for (int j = 0; j < N; j++) {
+            const float v = -1.f + 2.f * (float)j / (float)(N - 1);
+            for (int i = 0; i < N; i++) {
+                const float u = -1.f + 2.f * (float)i / (float)(N - 1);
+                const float px = c.x + dir.x * u * ext + perp.x * v * r;
+                const float pz = c.y + dir.y * u * ext + perp.y * v * r;
+                const float py = base + planet::surface(p_, px, pz - scroll) + 0.04f;
+                vtx.insert(vtx.end(), {px, py, pz});
+                uv.insert(uv.end(), {u, v});
+                const unsigned char a = (unsigned char)std::clamp((int)(fade * 255.f + 0.5f), 0, 255);
+                col.insert(col.end(), {12, 6, 30, a});
+            }
+        }
+        for (int j = 0; j < N - 1; j++)
+            for (int i = 0; i < N - 1; i++) {
+                const unsigned short a = (unsigned short)(baseV + j * N + i);
+                const unsigned short b = (unsigned short)(a + 1);
+                const unsigned short c0 = (unsigned short)(a + N);
+                const unsigned short d = (unsigned short)(a + N + 1);
+                idx.insert(idx.end(), {a, c0, b, b, c0, d});
+            }
+    }
+    if (idx.empty()) return;
+
+    Mesh mesh{};
+    mesh.vertexCount = (int)(vtx.size() / 3);
+    mesh.triangleCount = (int)(idx.size() / 3);
+    mesh.vertices = copyOut(vtx);
+    mesh.texcoords = copyOut(uv);
+    mesh.colors = copyOut(col);
+    mesh.indices = copyOut(idx);
+    UploadMesh(&mesh, false);
+    SetShaderValue(craftShadowSh_, csLocSoft_, &softness, SHADER_UNIFORM_FLOAT);
+    rlDrawRenderBatchActive();
+    rlDisableDepthTest(); rlDisableDepthMask();
+    BeginBlendMode(BLEND_ALPHA);
+    DrawMesh(mesh, craftShadowMat_, layer);
+    EndBlendMode();
+    rlDrawRenderBatchActive();
+    rlEnableDepthMask(); rlEnableDepthTest();
+    UnloadMesh(mesh);
 }

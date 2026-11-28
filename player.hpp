@@ -12,6 +12,7 @@ extern Vector2 g_autopilotHold;
 // flight controller; the trench run flies from it. g_invertPitch: Options > UP/DOWN (saved), X toggles in-game.
 extern Vector2 g_flightStick;
 extern bool g_invertPitch;
+extern int g_groundShadows;            // 0 off, 1 low, 2 high (Options, saved)
 
 struct Player : Ship {
     Player() : Ship(100) {}

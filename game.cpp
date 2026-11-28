@@ -418,6 +418,9 @@ void Game::loadSave() {
     pcDisplaySetFpsLimit(cap);
     pcDisplayApplyTiming();
 #endif
+    int shadows = g_groundShadows;
+    if (f) f >> shadows;    // optional: Ground Shadows Off/Low/High (after PC display fields)
+    if (shadows >= 0 && shadows <= 2) g_groundShadows = shadows;
     ownedWeapons = (owned & 7u) | 1u;
     if (const char* e = getenv("OWN_WEAPONS")) ownedWeapons |= (unsigned)atoi(e) & 7u;   // test hook (not saved unless something saves)
     weapons.primary = (prim >= 0 && prim < kPrimaryCount && ((ownedWeapons >> prim) & 1u)) ? prim : kPrimaryLaser;
@@ -435,7 +438,7 @@ void Game::writeSave() const {
 #if defined(_WIN32)
     f << ' ' << pcDisplayRequestedAA() << ' ' << (pcDisplayVsync() ? 1 : 0) << ' ' << pcDisplayFpsLimit();
 #endif
-    f << '\n';   // t260: + invert up/down   // t219: owned primaries + selection (appended: older builds ignore them)
+    f << ' ' << g_groundShadows << '\n';   // t260 invert; #43 aa/vsync/cap; ground shadows Off/Low/High
 }
 
 // ============================================================ flow
@@ -2345,6 +2348,15 @@ void Game::drawWorld() const {
         static std::vector<Background::Bg3D> b3; bg.collect3d(b3);
         if (appr.on && !appr.terrain)  // level 6: the terrain is only there once we are through the clouds
             b3.erase(std::remove_if(b3.begin(), b3.end(), [](const Background::Bg3D& x) { return x.terrain; }), b3.end());
+        r3d.setGroundShadowQuality(g_groundShadows);
+        r3d.clearGroundShadowCasters();
+        if (g_groundShadows > 0 && !b3.empty()) {
+            if (player.def) r3d.addGroundShadowCaster(player.pos, player.def->size * s, player.hiddenAxis);
+            enemies.list.each([&](const Enemy& e) {
+                if (!e.def) return;
+                r3d.addGroundShadowCaster(e.pos, kEnemySize * e.def->scale * s, e.hiddenAxis);
+            });
+        }
         if (!b3.empty()) { EndMode2D(); r3d.drawBackground3D(b3); BeginMode2D(cam); }
         // Level 3 is the enemy-ship infiltration route.  The temporary review-only gate has
         // served its purpose; ship-interior rendering is now part of the shipped level.
