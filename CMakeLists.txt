@@ -46,6 +46,7 @@ set(SHOOTER_SOURCES
     moon_level.cpp
     trench_run.cpp
     flight_audio.cpp
+    pc_display.cpp
 )
 
 add_executable(shooter ${SHOOTER_SOURCES})

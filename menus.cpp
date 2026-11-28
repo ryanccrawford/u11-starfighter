@@ -7,6 +7,9 @@
 #include "game.hpp"
 #include "config.hpp"
 #include "ui_theme.hpp"
+#if defined(_WIN32)
+#include "pc_display.hpp"
+#endif
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
@@ -64,26 +67,68 @@ void Game::drawOptions() {
     static ui::Nav nav;
     nav.begin();
     ui::heading("OPTIONS", W / 2, 26 * s, 42 * s, s);
-    float bw = 420 * s, bh = 52 * s, bx = W / 2 - bw / 2, y = H * 0.12f;
+    float bw = 420 * s, bh = 52 * s, bx = W / 2 - bw / 2;
+#if defined(_WIN32)
+    float y = H * 0.07f;
+    const float gap = 50 * s;
+#else
+    float y = H * 0.12f;
     const float gap = 64 * s;
+#endif
     auto b = [&](Rectangle r, const char* label) { const bool hit = button(r, label, true, &titleFont); return nav.item(r, true, s) || hit; };
-    if (b({bx, y, bw, bh}, showFps ? "FPS DISPLAY: ON" : "FPS DISPLAY: OFF")) { showFps = !showFps; writeSave(); }
-    if (b({bx, y + gap, bh, bh}, "-")) { volume = std::max(0.f, volume - 0.1f); SetMasterVolume(volume); writeSave(); audio.play(Sfx::Pickup); }
-    ui::caption(TextFormat("VOLUME %d%%", (int)std::lround(volume * 100)), W / 2, y + gap + 12 * s, 26 * s, s, RAYWHITE);
-    if (b({bx + bw - bh, y + gap, bh, bh}, "+")) { volume = std::min(1.f, volume + 0.1f); SetMasterVolume(volume); writeSave(); audio.play(Sfx::Pickup); }
-    if (b({bx, y + 2 * gap, bw, bh}, autoFire ? "PRIMARY FIRE: AUTO" : "PRIMARY FIRE: MANUAL")) { autoFire = !autoFire; writeSave(); }
-    if (b({bx, y + 3 * gap, bw, bh}, TextFormat("GRAPHICS: %s", gfxName()))) {
+    int row = 0;
+    auto yAt = [&]() { return y + (float)row * gap; };
+    auto nextY = [&]() { const float yy = yAt(); row++; return yy; };
+    if (b({bx, nextY(), bw, bh}, showFps ? "FPS DISPLAY: ON" : "FPS DISPLAY: OFF")) { showFps = !showFps; writeSave(); }
+    const float yVol = nextY();
+    if (b({bx, yVol, bh, bh}, "-")) { volume = std::max(0.f, volume - 0.1f); SetMasterVolume(volume); writeSave(); audio.play(Sfx::Pickup); }
+    ui::caption(TextFormat("VOLUME %d%%", (int)std::lround(volume * 100)), W / 2, yVol + 12 * s, 26 * s, s, RAYWHITE);
+    if (b({bx + bw - bh, yVol, bh, bh}, "+")) { volume = std::min(1.f, volume + 0.1f); SetMasterVolume(volume); writeSave(); audio.play(Sfx::Pickup); }
+    if (b({bx, nextY(), bw, bh}, autoFire ? "PRIMARY FIRE: AUTO" : "PRIMARY FIRE: MANUAL")) { autoFire = !autoFire; writeSave(); }
+    if (b({bx, nextY(), bw, bh}, TextFormat("GRAPHICS: %s", gfxName()))) {
         gfxMode = (gfxMode + 1) % 3; autoStep = 0; applyQuality(); writeSave();
     }
     // t260: invert up/down (trench run pitch; X flips it in-game). OPTIONS_TOGGLE / OPTIONS_SHOT: hidden test hooks
     static int optFrames = 0; optFrames++;
     const bool testToggle = getenv("OPTIONS_TOGGLE") && optFrames == 20;
-    if (b({bx, y + 4 * gap, bw, bh}, g_invertPitch ? "UP/DOWN: INVERTED" : "UP/DOWN: NORMAL") || testToggle) {
+    if (b({bx, nextY(), bw, bh}, g_invertPitch ? "UP/DOWN: INVERTED" : "UP/DOWN: NORMAL") || testToggle) {
         g_invertPitch = !g_invertPitch; writeSave();
         fprintf(stderr, "INVERT toggled in Options -> %d (saved)\n", g_invertPitch ? 1 : 0);
     }
-    if (b({bx, y + 5 * gap, bw, bh}, "DEVELOPMENT")) { developmentPage = 0; state = State::Development; }
-    if (b({bx, y + 6 * gap, bw, bh}, "BACK") || ui::backPressed()) state = State::Title;
+#if defined(_WIN32)
+    {
+        const int req = pcDisplayRequestedAA(), eff = pcDisplayEffectiveAA();
+        const char* aaLabel = (req <= 0) ? "ANTI-ALIASING: OFF" :
+            (req > eff) ? TextFormat("ANTI-ALIASING: %dX (MAX)", eff) :
+            TextFormat("ANTI-ALIASING: %dX", req);
+        if (b({bx, nextY(), bw, bh}, aaLabel)) {
+            static const int kAA[] = {0, 2, 4, 8, 16};
+            int i = 0; for (int n = 0; n < 5; n++) if (kAA[n] == req) { i = n; break; }
+            pcDisplaySetAA(kAA[(i + 1) % 5]);
+            writeSave();
+        }
+        if (b({bx, nextY(), bw, bh}, pcDisplayVsync() ? "VSYNC: ON" : "VSYNC: OFF")) {
+            pcDisplaySetVsync(!pcDisplayVsync());
+            pcDisplayApplyTiming();
+            writeSave();
+        }
+        const int cap = pcDisplayFpsLimit(), hz = pcDisplayMonitorRefresh();
+        const bool vs = pcDisplayVsync();
+        const char* capTxt = cap <= 0 ? "UNLIMITED" : TextFormat("%d", cap);
+        const char* fpsLabel = (vs && hz > 0 && (cap <= 0 || cap > hz))
+            ? TextFormat("FPS LIMIT: %s (%d VSYNC)", capTxt, hz)
+            : TextFormat("FPS LIMIT: %s", capTxt);
+        if (b({bx, nextY(), bw, bh}, fpsLabel)) {
+            static const int kFps[] = {30, 60, 75, 90, 120, 144, 0};
+            int i = 0; for (int n = 0; n < 7; n++) if (kFps[n] == cap) { i = n; break; }
+            pcDisplaySetFpsLimit(kFps[(i + 1) % 7]);
+            pcDisplayApplyTiming();
+            writeSave();
+        }
+    }
+#endif
+    if (b({bx, nextY(), bw, bh}, "DEVELOPMENT")) { developmentPage = 0; state = State::Development; }
+    if (b({bx, nextY(), bw, bh}, "BACK") || ui::backPressed()) state = State::Title;
     nav.end();
     if (const char* dir = getenv("OPTIONS_SHOT")) {
         if (optFrames == 10) fprintf(stderr, "OPTIONS invert at open = %d\n", g_invertPitch ? 1 : 0);

@@ -6,6 +6,9 @@
 #include "bulkhead.hpp"
 #include "profile.hpp"
 #include "rlgl.h"
+#if defined(_WIN32)
+#include "pc_display.hpp"
+#endif
 #include <algorithm>
 #include "config.hpp"
 #include "raymath.h"
@@ -343,12 +346,18 @@ Game::Game() {
     vfx.init("assets");
     audio.init();
     fprintf(stderr, "AUDIO %s\n", audio.ok() ? "ready" : "unavailable");
+#if defined(_WIN32)
+    pcDisplayInit();
+#endif
     loadSave();
     SetMasterVolume(volume);
     reloadData();
 }
 
 Game::~Game() {
+#if defined(_WIN32)
+    pcDisplayShutdown();
+#endif
     g_moonLevel.reset();
     r3d.shutdown();
     if (rt.id) UnloadRenderTexture(rt);
@@ -399,6 +408,16 @@ void Game::loadSave() {
     int inv = 0;
     if (f) f >> inv;        // optional (t260): Options > UP/DOWN inverted
     g_invertPitch = inv != 0;
+#if defined(_WIN32)
+    int aa = 4, vs = 1, cap = 144;
+    if (f) f >> aa;         // optional: requested MSAA samples (0/2/4/8/16)
+    if (f) f >> vs;         // optional: VSync on/off
+    if (f) f >> cap;        // optional: FPS cap (0 = unlimited)
+    pcDisplaySetAA(aa);
+    pcDisplaySetVsync(vs != 0);
+    pcDisplaySetFpsLimit(cap);
+    pcDisplayApplyTiming();
+#endif
     ownedWeapons = (owned & 7u) | 1u;
     if (const char* e = getenv("OWN_WEAPONS")) ownedWeapons |= (unsigned)atoi(e) & 7u;   // test hook (not saved unless something saves)
     weapons.primary = (prim >= 0 && prim < kPrimaryCount && ((ownedWeapons >> prim) & 1u)) ? prim : kPrimaryLaser;
@@ -412,7 +431,11 @@ void Game::loadSave() {
 void Game::writeSave() const {
     std::ofstream f(savePath);
     f << unlocked << ' ' << savedStep << ' ' << highScore << ' ' << volume << ' ' << (showFps ? 1 : 0) << ' ' << gfxMode << ' ' << (autoFire ? 1 : 0)
-      << ' ' << ownedWeapons << ' ' << weapons.primary << ' ' << (g_invertPitch ? 1 : 0) << '\n';   // t260: + invert up/down   // t219: owned primaries + selection (appended: older builds ignore them)
+      << ' ' << ownedWeapons << ' ' << weapons.primary << ' ' << (g_invertPitch ? 1 : 0);
+#if defined(_WIN32)
+    f << ' ' << pcDisplayRequestedAA() << ' ' << (pcDisplayVsync() ? 1 : 0) << ' ' << pcDisplayFpsLimit();
+#endif
+    f << '\n';   // t260: + invert up/down   // t219: owned primaries + selection (appended: older builds ignore them)
 }
 
 // ============================================================ flow
@@ -2745,6 +2768,9 @@ void Game::draw() {
     tapConsumed = false;
     prof::mark(prof::Clear);
     BeginDrawing();
+#if defined(_WIN32)
+    pcDisplayBeginFrame();
+#endif
     switch (state) {
         case State::Title: ClearBackground({6, 6, 18, 255}); drawTitle(); break;
         case State::LevelSelect: ClearBackground({6, 6, 18, 255}); drawLevelSelect(); break;
@@ -2769,6 +2795,9 @@ void Game::draw() {
             if (scaled) {
                 rlLoadIdentity();
                 EndTextureMode();
+#if defined(_WIN32)
+                pcDisplayRebind();
+#endif
                 ClearBackground(BLACK);  // full clear = no tile preload on the screen pass
                 rlDisableColorBlend();   // opaque upscale: one full-screen quad, no blending
                 DrawTexturePro(rt.texture, {0, 0, (float)rt.texture.width, -(float)rt.texture.height}, {0, 0, W, H}, {}, 0, WHITE);
@@ -2869,6 +2898,9 @@ void Game::draw() {
         }
     }
     if (g_moonLevel) g_moonLevel->endOfFrame();   // t252: trench capture hooks
+#if defined(_WIN32)
+    pcDisplayEndFrame();
+#endif
     prof::mark(prof::Present);
     EndDrawing();
     prof::end();
