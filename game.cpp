@@ -911,7 +911,9 @@ void Game::updateCombatInput() {
         if (CheckCollisionPointCircle(p, fire, r)) { combatInput.primaryHeld = true; combatInput.mouseMovement = false; }
         else if (CheckCollisionPointCircle(p, secondary, r)) { secondaryHeld = true; combatInput.mouseMovement = false; }
         else if (CheckCollisionPointCircle(p, swc, swr)) { switchHeld = true; combatInput.mouseMovement = false; }
+#if !defined(_WIN32)
         else combatInput.movementId = -2;
+#endif
     }
 #endif
     combatInput.primaryHeld = combatInput.primaryHeld || IsKeyDown(KEY_SPACE);
