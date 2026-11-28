@@ -612,6 +612,7 @@ void TrenchRun::loadShips() {
             pNozL_ = {kHullEngineX, 0.22f, -0.98f};
             pNozR_ = {kHullEngineX, 0.22f, 0.98f};
             pNoz_ = {kHullEngineX, 0.22f, 0.f};
+            Render3D::hideExhaustConeMeshes(m);
             halfSpan_ = kWingTipZ * scale;
             halfThick_ = kHullHalfY * scale;
         } else { wl = {bb.max.x, c.y, c.z}; wr = {bb.min.x, c.y, c.z}; cNoz_ = {c.x, c.y, bb.min.z}; }
@@ -1688,7 +1689,10 @@ void TrenchRun::drawShipModel(Model& m, Matrix M, float sAt, Color tint, float g
     (void)shadowK;
     const Vector3 tk{tint.r / 255.f, tint.g / 255.f, tint.b / 255.f};
     SetShaderValue(sh_, locTint_, &tk, SHADER_UNIFORM_VEC3); SetShaderValue(sh_, locGlow_, &glow, SHADER_UNIFORM_FLOAT);
-    for (int i = 0; i < m.meshCount; i++) DrawMesh(m.meshes[i], m.materials[m.meshMaterial[i]], MatrixMultiply(m.transform, M));
+    for (int i = 0; i < m.meshCount; i++) {
+        if (m.meshes[i].triangleCount <= 0 || m.meshes[i].vertexCount <= 0) continue;
+        DrawMesh(m.meshes[i], m.materials[m.meshMaterial[i]], MatrixMultiply(m.transform, M));
+    }
     const float g0 = 0.f; SetShaderValue(sh_, locGlow_, &g0, SHADER_UNIFORM_FLOAT);
     const float hw2 = W2; SetShaderValue(sh_, locHalfW_, &hw2, SHADER_UNIFORM_FLOAT);
     sh_.locs[SHADER_LOC_VERTEX_TEXCOORD02] = keep;
@@ -1957,12 +1961,8 @@ void TrenchRun::drawGlows(const Camera3D& c, float t) {
         }
         const float bl = sinf(tm * 5.f) > 0 ? 1.f : 0.25f;
         bill(soft_, wl, 0.55f, Fade(Color{255, 40, 30, 255}, bl)); bill(soft_, wr, 0.55f, Fade(Color{40, 255, 80, 255}, bl));
-        const float eg = 1.f + std::max(0.f, pl_.v - kTrenchSpeed) / 80.f;
-        // Twin nozzles: blue-white cores, matching the starfighter's engine outlets.
-        bill(soft_, nzL, 1.35f * eg, Fade(Color{80, 160, 255, 255}, 0.8f));
-        bill(soft_, nzL, 0.6f * eg, Fade(Color{220, 240, 255, 255}, 0.75f));
-        bill(soft_, nzR, 1.35f * eg, Fade(Color{80, 160, 255, 255}, 0.8f));
-        bill(soft_, nzR, 0.6f * eg, Fade(Color{220, 240, 255, 255}, 0.75f));
+        (void)nzL; (void)nzR;
+        // Twin engine flames + heat-wave mirage are drawn in screen space after EndMode3D.
     }
     for (auto& ch : ch_) if (ch.alive) {
         const Vector3 F = fwd(ch.s);
@@ -2138,6 +2138,27 @@ void TrenchRun::draw(Render3D& r3d, const View& view, float t, float renderScale
     EndMode3D();
     rlSetClipPlanes(RL_CULL_DISTANCE_NEAR, RL_CULL_DISTANCE_FAR);
     (void)renderScale;
+    rlDrawRenderBatchActive();
+    if (playerOk_ && deadT_ < 0.f) {
+        // Same animated blue-white billboards + fast heat-wave mirage as Render3D gameplay,
+        // sitting in the two engine nozzles. scale = playerScale_ so the plume is ~0.7 world
+        // units long on the 7-unit trench ship (same fraction as the side-view fighter).
+        r3d.clearPlumes();
+        const Matrix W = MatrixMultiply(player_.transform, plM_);
+        const Vector3 nL = Vector3Transform(pNozL_, W);
+        const Vector3 nR = Vector3Transform(pNozR_, W);
+        const Vector3 aftAxis = Vector3Subtract(Vector3Transform({1.f, 0.f, 0.f}, W), Vector3Transform({0.f, 0.f, 0.f}, W));
+        const float aftLen = Vector3Length(aftAxis);
+        const Vector3 aft1 = aftLen > 1e-6f ? Vector3Scale(aftAxis, 1.f / aftLen) : Vector3{1, 0, 0};
+        const Vector2 sL = GetWorldToScreen(nL, c), sLb = GetWorldToScreen(Vector3Add(nL, aft1), c);
+        const Vector2 sR = GetWorldToScreen(nR, c);
+        const float unitPx = fmaxf(1.f, Vector2Distance(sL, sLb));
+        const float angDeg = atan2f(sLb.y - sL.y, sLb.x - sL.x) * RAD2DEG;
+        const float power = 1.f + std::max(0.f, pl_.v - kTrenchSpeed) / 80.f;
+        r3d.addPlume(sL, angDeg, unitPx, playerScale_, power);
+        r3d.addPlume(sR, angDeg, unitPx, playerScale_, power);
+        r3d.drawHeatAndFlames();
+    }
     rlDrawRenderBatchActive();
     rlDisableDepthTest();   // the HUD must not be depth-tested against the trench
     hud(view, t, W, H);

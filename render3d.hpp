@@ -74,6 +74,14 @@ public:
     void endShips();
     void endFrame();
     void drawFlamesOnly();
+    // Heat-wave mirage + blue-white nozzle billboards for a scene already on the
+    // backbuffer (title screen, trench run). Does not blit a scene render target.
+    void clearPlumes() { plumes_.clear(); }
+    void addPlume(Vector2 nozzle, float angDeg, float unitPx, float scale, float power = 1.f);
+    void drawHeatAndFlames();
+    // Hide the authored 3D exhaust-cone / heat-refraction meshes on a loaded
+    // player_starfighter model (bind-pose cones). Animation node indices are left intact.
+    static void hideExhaustConeMeshes(Model& model);
     // Ryan's 3D planets + scrolling terrain (background.json planet3d / terrain3d layers). Call
     // right after the 2D background (outside Mode2D): its own Mode3D pass, behind everything else.
     void drawBackground3D(const std::vector<Background::Bg3D>& items);
