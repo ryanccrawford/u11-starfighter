@@ -31,6 +31,11 @@ public:
     void draw(const Matrix& layer, float base, float scroll, float x0, float x1, float z0, float z1,
               Vector3 eye, float propFar);
     bool covered(float x0, float x1, float z0, float z1) const;  // every chunk of the rect resident
+    // Dynamic player/enemy shadows: sun-projected and height-sampled so they sit on the terrain.
+    // quality 0 = off, 1 = low (one quad), 2 = high (conforming grid). Caster positions are world-space.
+    struct CraftCaster { Vector3 world; float radius; };
+    void drawCraftShadows(const Matrix& layer, float base, float scroll, Vector3 toSun,
+                          const CraftCaster* casters, int count, int quality);
     Stats stats;
 private:
     struct Gpu {
@@ -46,8 +51,9 @@ private:
     void release(Gpu& g);
     planet::Params p_{};
     bool inited_ = false;
-    Shader terrainSh_{}, propSh_{}, shadowSh_{};
-    Material terrainMat_{}, propMat_{}, shadowMat_{};
+    Shader terrainSh_{}, propSh_{}, shadowSh_{}, craftShadowSh_{};
+    Material terrainMat_{}, propMat_{}, shadowMat_{}, craftShadowMat_{};
+    int csLocSoft_ = -1;
     Texture2D detail_{};
     int tLocOrigin_ = -1, tLocSun_ = -1, tLocAmb_ = -1, pLocSun_ = -1, pLocAmb_ = -1, sLocSun_ = -1;
     std::map<long, Gpu> chunks_;

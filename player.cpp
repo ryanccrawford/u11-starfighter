@@ -26,6 +26,11 @@ int shipRow(Mode mode, Vector2 vel, float facing, float th) {
 Vector2 g_autopilotHold{-1.f, -1.f};   // t251 (player.hpp)
 Vector2 g_flightStick{0.f, 0.f};       // t260 (player.hpp)
 bool g_invertPitch = false;            // t260 (player.hpp)
+#if defined(__aarch64__)
+int g_groundShadows = 0;               // tablet: off (keep >= 30 FPS)
+#else
+int g_groundShadows = 2;               // PC default: high
+#endif
 
 namespace {
 // Free flight: keyboard (screen directions) + touch/mouse drag (ship eases toward finger).

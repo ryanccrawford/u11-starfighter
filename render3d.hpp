@@ -170,6 +170,10 @@ public:
     Vector2 groundLocal(float gx, float gy, float groundZ) const;   // ground point (Z = world z + scroll) -> gameplay local
     Vector2 groundGunMuzzle(const GroundGunDraw& g, float scroll, int barrel) const;
     const PlanetRenderer::Stats* planetStats() const { return planet_ ? &planet_->stats : nullptr; }
+    // Ground shadows for the player and enemies (Options > Ground Shadows). quality 0/1/2.
+    void clearGroundShadowCasters() { craftShadows_.clear(); }
+    void setGroundShadowQuality(int quality) { groundShadowQuality_ = (quality < 0) ? 0 : (quality > 2 ? 2 : quality); }
+    void addGroundShadowCaster(Vector2 local, float sizePx, float depth = 0.f);
     const Camera3D& renderCamera() const { return rcamOn_ ? rcam_ : cam_; }
     Vector3 worldOf(Vector2 local, float depth = 0.f) const { return toWorld(local, depth); }
     void setProfileRoll(float r) { profile_ = r; }  // extra hull roll about the nose (approach side phase)
@@ -224,6 +228,8 @@ private:
     std::vector<GroundGunDraw> groundGuns_;
     float planetPropFar_ = 400.f;
     Vector3 sceneToSun_{-0.45f, 0.8f, 0.35f}; float sceneTerrainAmb_ = 0.30f;
+    std::vector<PlanetRenderer::CraftCaster> craftShadows_;
+    int groundShadowQuality_ = 0;
     void drawPlanet(const Background::Bg3D& it, float halfH, float visHalfW, float pxPerUnit);
     void drawGroundGuns(const Matrix& layer, float scroll);
     bool sceneLight_ = false;

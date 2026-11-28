@@ -88,6 +88,13 @@ void Game::drawOptions() {
     if (b({bx, nextY(), bw, bh}, TextFormat("GRAPHICS: %s", gfxName()))) {
         gfxMode = (gfxMode + 1) % 3; autoStep = 0; applyQuality(); writeSave();
     }
+    {
+        const char* shName = g_groundShadows >= 2 ? "HIGH" : g_groundShadows == 1 ? "LOW" : "OFF";
+        if (b({bx, nextY(), bw, bh}, TextFormat("GROUND SHADOWS: %s", shName))) {
+            g_groundShadows = (g_groundShadows + 1) % 3;
+            writeSave();
+        }
+    }
     // t260: invert up/down (trench run pitch; X flips it in-game). OPTIONS_TOGGLE / OPTIONS_SHOT: hidden test hooks
     static int optFrames = 0; optFrames++;
     const bool testToggle = getenv("OPTIONS_TOGGLE") && optFrames == 20;
