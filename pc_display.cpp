@@ -20,7 +20,8 @@ bool gInFrame = false;
 bool gReady = false;
 
 int gW = 0, gH = 0;
-unsigned gFbo = 0, gColorRbo = 0, gDepthRbo = 0, gResolveFbo = 0;
+unsigned gFbo = 0, gColorRbo = 0, gDepthRbo = 0, gResolveFbo = 0, gResolveTex = 0;
+int gResolveW = 0, gResolveH = 0;
 
 const int kAAOpts[] = {0, 2, 4, 8, 16};
 const int kFpsOpts[] = {30, 60, 75, 90, 120, 144, 0};
@@ -47,6 +48,8 @@ int clampAA(int requested) {
 
 void destroyFbo() {
     if (gResolveFbo) { glDeleteFramebuffers(1, &gResolveFbo); gResolveFbo = 0; }
+    if (gResolveTex) { glDeleteTextures(1, &gResolveTex); gResolveTex = 0; }
+    gResolveW = gResolveH = 0;
     if (gFbo) { glDeleteFramebuffers(1, &gFbo); gFbo = 0; }
     if (gColorRbo) { glDeleteRenderbuffers(1, &gColorRbo); gColorRbo = 0; }
     if (gDepthRbo) { glDeleteRenderbuffers(1, &gDepthRbo); gDepthRbo = 0; }
@@ -193,9 +196,37 @@ void pcDisplayEndFrame() {
     gInFrame = false;
     if (!gFbo) return;
     rlDrawRenderBatchActive();
+    if (!gResolveFbo) glGenFramebuffers(1, &gResolveFbo);
+    // Two-step resolve: MSAA FBO -> single-sample texture, then that texture -> backbuffer.
+    // A direct MSAA blit can fail silently depending on the default framebuffer's size.
+    if (!gResolveTex || gResolveW != gW || gResolveH != gH) {
+        if (gResolveTex) glDeleteTextures(1, &gResolveTex);
+        gResolveTex = 0;
+        glGenTextures(1, &gResolveTex);
+        glBindTexture(GL_TEXTURE_2D, gResolveTex);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, gW, gH, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        gResolveW = gW; gResolveH = gH;
+    }
+    glBindFramebuffer(GL_FRAMEBUFFER, gResolveFbo);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, gResolveTex, 0);
+    const GLenum resolveStatus = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+    while (glGetError() != GL_NO_ERROR) {}
     glBindFramebuffer(GL_READ_FRAMEBUFFER, gFbo);
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, gResolveFbo);
+    glBlitFramebuffer(0, 0, gW, gH, 0, 0, gW, gH, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+    const GLenum e1 = glGetError();
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, gResolveFbo);
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
     glBlitFramebuffer(0, 0, gW, gH, 0, 0, gW, gH, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+    const GLenum e2 = glGetError();
+    if (resolveStatus != GL_FRAMEBUFFER_COMPLETE || e1 || e2) {
+        fprintf(stderr, "PC display: resolve failed status=0x%x errors=%u,%u fbo=%dx%d\n",
+                (unsigned)resolveStatus, (unsigned)e1, (unsigned)e2, gW, gH);
+    }
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     rlDisableFramebuffer();
 }
