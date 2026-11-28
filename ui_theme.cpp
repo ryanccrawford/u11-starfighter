@@ -2,6 +2,9 @@
 #include "ui_theme.hpp"
 #include "raymath.h"
 #include "rlgl.h"
+#if defined(_WIN32)
+#include "pc_display.hpp"
+#endif
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
@@ -90,6 +93,9 @@ void renderSky(int SW, int SH) {
     DrawRectangleGradientV(0, 0, SW, (int)(SH * 0.18f), Fade(BLACK, 0.35f), Fade(BLACK, 0.f));          // gentle vignette
     DrawRectangleGradientV(0, (int)(SH * 0.80f), SW, SH - (int)(SH * 0.80f), Fade(BLACK, 0.f), Fade(BLACK, 0.40f));
     EndTextureMode();
+#if defined(_WIN32)
+    pcDisplayRebind();
+#endif
 }
 }  // namespace
 

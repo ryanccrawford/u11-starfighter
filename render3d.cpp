@@ -31,6 +31,9 @@ void BulkheadPillarVisual::updateDistance(float signedDistance, float fadeDistan
 }
 #include "raymath.h"
 #include "rlgl.h"
+#if defined(_WIN32)
+#include "pc_display.hpp"
+#endif
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -730,6 +733,9 @@ void Render3D::ensureSceneRt() {
     // Make sure we are not left drawing into the new RT (title/menus must hit the backbuffer).
     rlDrawRenderBatchActive();
     rlDisableFramebuffer();
+#if defined(_WIN32)
+    pcDisplayRebind();
+#endif
     SetTextureFilter(scene_.texture, TEXTURE_FILTER_BILINEAR);
     rtW_ = w; rtH_ = h;
     Vector2 sc{(float)w, (float)h};
@@ -1086,6 +1092,9 @@ void Render3D::init(const char* root) {
             DrawTexturePro(noiseTex_, {0, 0, (float)noiseTex_.width, (float)noiseTex_.height}, {0, 0, 2048, 1024}, {0, 0}, 0.f, WHITE);
             EndShaderMode();
             EndTextureMode();
+#if defined(_WIN32)
+        pcDisplayRebind();
+#endif
             nebTex_ = neb.texture;
             SetTextureFilter(nebTex_, TEXTURE_FILTER_BILINEAR); SetTextureWrap(nebTex_, TEXTURE_WRAP_REPEAT);
             const char* nm[] = {"F", "R", "U", "tanH", "K", "tint"};
@@ -1915,6 +1924,9 @@ void Render3D::renderVolFog(const ApproachScene& a, const VolFog& v) {
         EndShaderMode();
         EndBlendMode();
         EndTextureMode();
+#if defined(_WIN32)
+        pcDisplayRebind();
+#endif
     }
     fogValid_ = true;
 }
@@ -2311,6 +2323,13 @@ void Render3D::endFrame() {
         const Texture2D& st = scene_.texture;
         const int W = GetScreenWidth(), H = GetScreenHeight();
         bool any = false;
+#if defined(_WIN32)
+        if (pcDisplayActive() && st.id > 0) {
+            rlDrawRenderBatchActive();
+            pcDisplayResolveToTexture(st.id, 0, 0, W, H);
+            any = true;
+        } else
+#endif
         for (auto& p : plumes_) {
             if (!p.player) continue;
             const float hl = 5.0f * p.scale * p.unitPx * p.power, hw = 1.6f * p.scale * p.unitPx, r = sqrtf(hl * hl + hw * hw / 4) + 24;  // + refraction offset margin
@@ -2333,6 +2352,9 @@ void Render3D::endFrame() {
         }
     } else if (heat_ && inSceneRt_) {
         EndTextureMode();
+#if defined(_WIN32)
+        pcDisplayRebind();
+#endif
         inSceneRt_ = false;
         const Texture2D& st = scene_.texture;
         // Exact demo blit (Y-flip).
@@ -2415,6 +2437,13 @@ void Render3D::drawHeatAndFlames() {
         const Texture2D& st = scene_.texture;
         const int W = GetScreenWidth(), H = GetScreenHeight();
         bool any = false;
+#if defined(_WIN32)
+        if (pcDisplayActive() && st.id > 0) {
+            rlDrawRenderBatchActive();
+            pcDisplayResolveToTexture(st.id, 0, 0, W, H);
+            any = true;
+        } else
+#endif
         for (auto& p : plumes_) {
             if (!p.player) continue;
             const float hl = 5.0f * p.scale * p.unitPx * p.power, hw = 1.6f * p.scale * p.unitPx, r = sqrtf(hl * hl + hw * hw / 4) + 24;
